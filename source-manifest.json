@@ -1,0 +1,68 @@
+{
+  "schemaVersion": "project-os.alpha-source-manifest.v1",
+  "provenance": {
+    "sourceProject": "Project OS ontology pilot",
+    "commit": "09dcd47b99d0515c620af578389461da5f59f420",
+    "selection": "Committed source and test bytes at the stated commit; unrelated local changes excluded",
+    "sha256Meaning": "Each files value is the SHA-256 of the exported file. It also equals the committed source SHA-256 except for the listed portability edit."
+  },
+  "files": {
+    "src/core/human-goal-workflow/source.ts": "da623128298af8cbaf39dfe7f050bb90b173434736515142ce6d6969ae12dfe4",
+    "src/core/human-goal-workflow/agent-activity.ts": "11e38729c56342304e21e7f7771ec84eef2b895c2e95162fcdfe1ba91d89fd07",
+    "src/core/human-goal-workflow/codex-session.ts": "dc7e36f675628d05d623368df709760db4cd5d19997f9818c64a2ab47f5974f1",
+    "src/core/human-goal-workflow/types.ts": "db7c0fd765e12cacc86c4f519af7944e7bafbdd50bd85a66bb586508ed5674ac",
+    "src/core/human-goal-workflow/mainline-progress.ts": "2e0f9f52e26a280d7a34a84e25b8ebde19771a644b218c62c5bd9b1813cde676",
+    "src/core/human-goal-workflow/analyzer.ts": "7261570c4132e2c5bd1a812183c671f9336d4c1edad8dfb8a73a3f767bc3f5ae",
+    "src/core/human-goal-workflow/codex-events.ts": "a1411150289bb61f1da25393c4d60e12d352730f98f9fe136fe4d8d9fb240ae8",
+    "src/core/human-goal-workflow/verification.ts": "cec2703b318cfbf5e8b24532e76578dbc16883df47a585cb7c25012aa70d2ac1",
+    "src/core/human-goal-workflow/rounds.ts": "d9d5d9c3df935f55f5d3bbec239df94f05bd4ae578e48b6c9b5c2393decee8cb",
+    "src/core/human-goal-workflow/service.ts": "7907f46dece2f66f718e29e0c4241f277a49f91b6ffcdec357cb0b3b8e53b05b",
+    "src/core/human-goal-workflow/store.ts": "964def3849f1b48a9bdf1f6f7107f749f109733158946b6ab908de86204b7712",
+    "src/core/human-goal-workflow/scenarios.ts": "a49abd4afdc159ef9917d3566654a8485bc3a3967acb3f9234bfda27df0fb22d",
+    "src/human-goal-workbench/client.js": "8b1d0dddfe483c73c8af7aa22e3eaab50e61ee28a48c501001020d193a0576e6",
+    "src/human-goal-workbench/index.html": "e4648c0af6d743cca9721a5106e6968e32874c0e9052476e13e023dd371b8a6c",
+    "src/human-goal-workbench/styles.css": "8558a73f6f25ed16ef7bfd3b11ff591fca6bbe1b597af8c49fb14a864badffc9",
+    "src/human-goal-workbench/server.ts": "73eb8f0f913eb4293028827cccd8871c35c35d5feb42b248f25f10ba34275858",
+    "scripts/human-goal-workbench.ts": "d2861df018d2d1c1862b8414894e10490090fc095657026524b762f457f61f8f",
+    "scripts/project-os-rounds.ts": "f34d0cc47fb0db028bfb3e02d98e6ec1e536314eb9c619706133e1f88b1357bd",
+    "scripts/project-os-watch.ts": "d310a3481316da63e65c74ee11d3e5c10a0b837ed32e6d263312a81e30ed62dd",
+    "scripts/project-os-verify.ts": "fe604bc4a60a85dfa7ef9ecf34473204adf64d782dc571fd876aabe2c9dcde45",
+    "tests/core/human-goal-workflow.test.ts": "622e1c322ba11c8ce21998a51ab0f868152bc627df08ec557243e04e5da35f30",
+    "tests/core/project-os-agent-activity.test.ts": "1e1c37917aec2ec5856fed327f032724925283aa0a1866aec3ca361eccb03875",
+    "tests/core/project-os-alpha-loop.test.ts": "5d1fe7afc8320d4931bd38c6a0d6b607d959ceb5effe050f908a63398bc7acd1",
+    "tests/core/project-os-analysis-identifiers.test.ts": "44e397ec573b21d2ea01aa0579808d592dc5fa293d77012e5696fffb757900ad",
+    "tests/core/project-os-closed-loop.test.ts": "b08df696e06a65b28e02da43327711860879c1baa6778a09453a2a31c6322db4",
+    "tests/core/project-os-consolidation-input.test.ts": "fdfc2c5b08b815b63419a47c95502ec2c597c3e46eb6993b989263bc9c7569fe",
+    "tests/core/project-os-mainline-progress.test.ts": "c08cf4d93884a11b8f6e99a617de4392d3bd084ba55fc16132d7872a412e9fdf",
+    "tests/core/project-os-rounds.test.ts": "ca44739231cd24d3ce1c8c408def8396acb35b4657cd6d97c846d1242d457b96",
+    "tests/cases/human-goal-workbench.test.ts": "1480017242bd581e1e16f3511de84bca95303895fe5d89de05c191b680c2a767",
+    "tests/cases/project-os-agent-activity.test.ts": "a58ca0774432516ec773fa2c088ea9f1da980fb1ebcccef7ad42d895fdca739f",
+    "tests/cases/project-os-alpha-loop.test.ts": "525fa37add7c2dea3a9cbc81f86df5590eb5446fa5344fed2b994d62e38b3898",
+    "tests/cases/project-os-closed-loop.test.ts": "53f1b4570d1651b4dff0b4ca09f9a436343e33f64048d321937a9cdb50f70a84",
+    "tests/cases/project-os-mainline-progress.test.ts": "c0cf9a40d4a5f347dd2ef2caa68445cf0a729313204e4fe54876c6710a0622d0",
+    "tests/cases/project-os-rounds.test.ts": "ec1020891d96c5f802d5e46fc691bc7fb674f417ea3860f79a17d1f9c330eba0"
+  },
+  "portabilityEdits": [
+    {
+      "path": "tests/core/project-os-consolidation-input.test.ts",
+      "committedSha256": "e6e73511e575f1f35ab61b9b44bf760099e25b89586d0885d5a28ce2258df242",
+      "exportedSha256": "fdfc2c5b08b815b63419a47c95502ec2c597c3e46eb6993b989263bc9c7569fe",
+      "change": "Replace only the optional private preflight artifact path with PROJECT_OS_ANALYSIS_INPUT_PREFLIGHT or a missing relative optional fixture; retain skip-if-unavailable and all assertions."
+    }
+  ],
+  "packageAuthoredFiles": [
+    "LICENSE",
+    "README.md",
+    "AGENTS.md",
+    "docs/PRD.md",
+    "docs/SPEC.md",
+    "docs/ALPHA.md",
+    "scripts/setup.ts",
+    "tests/setup.test.ts",
+    "package.json",
+    "package-lock.json",
+    "tsconfig.json",
+    "vitest.config.ts",
+    "source-manifest.json"
+  ]
+}

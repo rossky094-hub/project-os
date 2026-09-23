@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.local/
+.starter-os/
+.superpowers/
+.research/
+.DS_Store
+coverage/
+tmp/
+.worktrees/
+
+# This project currently uses npm/package-lock as the committed package-manager
+# boundary. Ignore accidental pnpm artifacts from local script execution.
+pnpm-lock.yaml
+pnpm-workspace.yaml

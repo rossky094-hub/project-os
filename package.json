@@ -1,0 +1,30 @@
+{
+  "name": "project-os",
+  "version": "0.1.0-alpha.1",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "packageManager": "npm@11.9.0",
+  "engines": {
+    "node": "^20.19.0 || ^22.13.0 || >=24.0.0"
+  },
+  "scripts": {
+    "setup": "tsx scripts/setup.ts",
+    "start": "tsx scripts/human-goal-workbench.ts serve --config .local/config.json",
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run --no-cache --maxWorkers=1",
+    "rounds": "tsx scripts/project-os-rounds.ts",
+    "watch": "tsx scripts/project-os-watch.ts",
+    "verify": "tsx scripts/project-os-verify.ts"
+  },
+  "dependencies": {
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.2",
+    "jsdom": "29.1.1",
+    "tsx": "4.22.4",
+    "typescript": "5.9.3",
+    "vitest": "3.2.6"
+  }
+}
