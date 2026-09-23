@@ -1,0 +1,302 @@
+{
+  "capture_date": "2026-09-23",
+  "capture_date_basis": "parent-supplied task and dated case evidence",
+  "kind": "actual UI screenshot walkthrough; existing-case replay; not continuous live recording",
+  "sources": [
+    {
+      "name": "mainline.png",
+      "sha256": "b3bc1418c62eee55079393daadb506e7bde27f73d44d6404e0130179b5f89339",
+      "dimensions": [
+        2714,
+        2100
+      ]
+    },
+    {
+      "name": "progress.png",
+      "sha256": "cb7f3e215ff0033fb72f5c3bd8e216e918a95582c4d5d99d6b572aa8e12450be",
+      "dimensions": [
+        2714,
+        2100
+      ]
+    },
+    {
+      "name": "round.png",
+      "sha256": "ceb0105241de873058061f4b897b183357911a53da3b8be8dfaa5801ea6683c5",
+      "dimensions": [
+        2714,
+        2100
+      ]
+    }
+  ],
+  "derivation": "Only rectangular crops, proportional Lanczos resizing, and surrounding explanatory typography. Product screenshot content is unchanged. Browser chrome and unrelated tabs excluded. Captions summarize the parent-supplied scoped case result; raw private evidence is not exported.",
+  "cards": {
+    "01-product-mainline.png": [
+      {
+        "source": "mainline.png",
+        "crop_xyxy": [
+          75,
+          888,
+          2074,
+          1058
+        ],
+        "destination_xy": [
+          56,
+          299
+        ],
+        "destination_width": 1168
+      },
+      {
+        "source": "mainline.png",
+        "crop_xyxy": [
+          75,
+          1326,
+          2074,
+          1815
+        ],
+        "destination_xy": [
+          56,
+          420
+        ],
+        "destination_width": 1168
+      }
+    ],
+    "02-round-evidence.png": [
+      {
+        "source": "round.png",
+        "crop_xyxy": [
+          617,
+          1300,
+          2569,
+          1860
+        ],
+        "destination_xy": [
+          56,
+          296
+        ],
+        "destination_width": 1168
+      }
+    ],
+    "03-remaining-gaps.png": [
+      {
+        "source": "mainline.png",
+        "crop_xyxy": [
+          787,
+          406,
+          1573,
+          540
+        ],
+        "destination_xy": [
+          56,
+          363
+        ],
+        "destination_width": 652
+      },
+      {
+        "source": "mainline.png",
+        "crop_xyxy": [
+          2137,
+          885,
+          2653,
+          1732
+        ],
+        "destination_xy": [
+          815,
+          267
+        ],
+        "destination_width": 390
+      }
+    ]
+  },
+  "video": {
+    "file": "project-os-case-walkthrough.mp4",
+    "duration_seconds": 48,
+    "dimensions": [
+      1280,
+      720
+    ],
+    "codec": "H.264",
+    "pixel_format": "yuv420p",
+    "fps": 24,
+    "audio": "none; Chinese captions",
+    "segments": {
+      "segment-1": {
+        "duration_seconds": 8,
+        "crops": [
+          {
+            "source": "mainline.png",
+            "crop_xyxy": [
+              75,
+              1326,
+              2074,
+              1815
+            ],
+            "destination_xy": [
+              56,
+              207
+            ],
+            "destination_width": 1168
+          }
+        ]
+      },
+      "segment-2": {
+        "duration_seconds": 8,
+        "crops": [
+          {
+            "source": "progress.png",
+            "crop_xyxy": [
+              95,
+              1076,
+              2047,
+              1282
+            ],
+            "destination_xy": [
+              56,
+              188
+            ],
+            "destination_width": 1168
+          },
+          {
+            "source": "progress.png",
+            "crop_xyxy": [
+              95,
+              1280,
+              2047,
+              1493
+            ],
+            "destination_xy": [
+              56,
+              365
+            ],
+            "destination_width": 1168
+          }
+        ]
+      },
+      "segment-3": {
+        "duration_seconds": 10,
+        "crops": [
+          {
+            "source": "round.png",
+            "crop_xyxy": [
+              619,
+              1309,
+              2563,
+              1399
+            ],
+            "destination_xy": [
+              56,
+              179
+            ],
+            "destination_width": 1168
+          },
+          {
+            "source": "round.png",
+            "crop_xyxy": [
+              619,
+              1519,
+              2563,
+              1764
+            ],
+            "destination_xy": [
+              56,
+              265
+            ],
+            "destination_width": 1168
+          }
+        ]
+      },
+      "segment-4": {
+        "duration_seconds": 8,
+        "crops": [
+          {
+            "source": "mainline.png",
+            "crop_xyxy": [
+              787,
+              400,
+              1567,
+              540
+            ],
+            "destination_xy": [
+              56,
+              176
+            ],
+            "destination_width": 756
+          },
+          {
+            "source": "mainline.png",
+            "crop_xyxy": [
+              2143,
+              1021,
+              2651,
+              1367
+            ],
+            "destination_xy": [
+              843,
+              176
+            ],
+            "destination_width": 381
+          },
+          {
+            "source": "round.png",
+            "crop_xyxy": [
+              619,
+              1766,
+              2549,
+              1860
+            ],
+            "destination_xy": [
+              56,
+              473
+            ],
+            "destination_width": 1168
+          }
+        ]
+      },
+      "segment-5": {
+        "duration_seconds": 8,
+        "crops": [
+          {
+            "source": "round.png",
+            "crop_xyxy": [
+              61,
+              806,
+              516,
+              1140
+            ],
+            "destination_xy": [
+              56,
+              182
+            ],
+            "destination_width": 383
+          }
+        ]
+      },
+      "segment-6": {
+        "duration_seconds": 6,
+        "crops": [
+          {
+            "source": "mainline.png",
+            "crop_xyxy": [
+              75,
+              1369,
+              2074,
+              1815
+            ],
+            "destination_xy": [
+              56,
+              173
+            ],
+            "destination_width": 1168
+          }
+        ]
+      }
+    }
+  },
+  "scope": {
+    "comparison": "unknown-before; new-evidence for three scoped criteria",
+    "whole_goal_accepted": false,
+    "diagnosis": "stale; historical snapshot",
+    "unsupported_current_codex": "manual import",
+    "novice_effect": "not independently established",
+    "unfamiliar_project_reliability": "unproven"
+  }
+}
