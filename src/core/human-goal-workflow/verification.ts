@@ -4,8 +4,8 @@ import { isAbsolute, resolve, delimiter } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { discoverSource, safePath } from './source.js';
-import { activeConfirmation, validateScenarios } from './scenarios.js';
-import { hash, safeId, text, WorkflowError, type Config, type Project, type Session } from './types.js';
+import { activeConfirmation, confirmationMapping, validateScenarios } from './scenarios.js';
+import { hash, projectRegistryHash, safeId, text, WorkflowError, type Config, type Project, type Session } from './types.js';
 const sha=z.string().regex(/^[a-f0-9]{64}$/);
 export const assertionStatus=z.enum(['passed','environment-blocked','missing-capability','behavior-failed','unknown']);
 const assertionSchema=z.object({assertionId:safeId,status:assertionStatus,actual:text,evidence:text}).strict();
@@ -16,6 +16,7 @@ export function verificationContext(s:Session,p:Project,roundId:string){
  const confirmation=activeConfirmation(s),goal=s.goals.at(-1),source=discoverSource(p),view=s.currentView===null?null:s.views[s.currentView];
  if(!confirmation||!goal)throw new WorkflowError('CONFIRMATION_REQUIRED','请先确认当前目标的场景与条件',409);
  if(!view||view.source.hash!==source.hash||view.goal?.hash!==goal.hash)throw new WorkflowError('SOURCE_STALE','请重新分析当前来源再执行条件验证',409);
+ if(!confirmationMapping(s,confirmation,view,source.hash).applicable)throw new WorkflowError('CONFIRMATION_STALE','场景对应的来源或映射依据已改变，请重新核对条件',409);
  validateScenarios(confirmation.scenarios,view.analysis,goal);
  const registration=s.rounds?.registrations.filter(r=>r.binding.roundId===roundId).at(-1);
  if(!registration||registration.binding.goalHash!==goal.hash)throw new WorkflowError('ROUND_REQUIRED','验证须绑定登记的当前目标轮次',409);
@@ -40,7 +41,7 @@ export async function runVerification(config:Config,p:Project,context:Verificati
  const registry=config.verificationChecks[p.id]??[];
  if(!checkIds.length||new Set(checkIds).size!==checkIds.length)throw new WorkflowError('CHECK_REQUIRED','显式选择互不重复的登记检查');
  const checks=checkIds.map(id=>{const c=registry.find(c=>c.id===id);if(!c)throw new WorkflowError('CHECK_UNKNOWN','检查未登记');if(new Set(c.bindings.map(b=>b.assertionId)).size!==c.bindings.length||c.bindings.some(b=>!context.binding.criteria.some(x=>x.scenarioId===b.scenarioId&&x.criterionId===b.criterionId)))throw new WorkflowError('CRITERION_UNKNOWN','检查条件映射不存在或断言重复');return c;});
- if(context.binding.projectId!==p.id||context.binding.registryHash!==hash(p)||discoverSource(p).hash!==context.binding.sourceHash)throw new WorkflowError('SOURCE_STALE','执行前来源或登记已改变',409);
+ if(context.binding.projectId!==p.id||context.binding.registryHash!==projectRegistryHash(p)||discoverSource(p).hash!==context.binding.sourceHash)throw new WorkflowError('SOURCE_STALE','执行前来源或登记已改变',409);
  const metadata=()=>hash(discoverSource(p).inventory.map(f=>{const st=lstatSync(safePath(p.sourceRoot,f.path));return [f.path,st.ino,st.size,st.mtimeMs,st.ctimeMs];})),initialMetadata=metadata();
  const startedAt=new Date().toISOString(),results:VerificationReceipt['checks']=[];let sourceChanged=false,totalOutput=0;
  const observe=()=>{try{if(discoverSource(p).hash!==context.binding.sourceHash||metadata()!==initialMetadata)sourceChanged=true;}catch{sourceChanged=true;}};

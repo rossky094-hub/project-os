@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { projectRounds } from './rounds.js';
-import { activeConfirmation } from './scenarios.js';
+import { activeConfirmation, confirmationMapping, mappingContinuity } from './scenarios.js';
 import { hash, safeId, text, type ScenarioSet, type Session, type View, WorkflowError } from './types.js';
 
 export const mainlineIntentSchema=z.object({
@@ -10,16 +10,27 @@ export const mainlineIntentSchema=z.object({
  reason:text,expectedVerification:text
 }).strict();
 export type MainlineIntent=z.infer<typeof mainlineIntentSchema>;
+// An authored explanation is separate from condition results. It helps a reader
+// understand a round, but cannot turn an agent's completion claim into proof.
+const shortText=z.string().trim().min(1).max(600);
+export const roundDeliverySchema=z.object({
+ title:z.string().trim().min(1).max(100),goalConnection:shortText,before:shortText,after:shortText,
+ evidenceSummary:shortText,receiptIds:z.array(safeId).max(10),observationIds:z.array(safeId).max(10).optional(),remaining:shortText,
+ nextAction:shortText,nextCheck:shortText
+}).strict();
+export type RoundDelivery=z.infer<typeof roundDeliverySchema>;
 export interface MainlineAnnotation extends MainlineIntent {
  id:string;roundId:string;goalHash:string;author:string;createdAt:string;
  previousId:string|null;idempotencyKey:string;requestHash:string;
  interpretationMode?:'historical-intent';observedSourceHash?:string;expectedCurrentSourceHash?:string;
+ delivery?:RoundDelivery;
 }
 export interface MainlineAnnotationData { revision:number; annotations:MainlineAnnotation[] }
 export const mainlineData=(s:Session):MainlineAnnotationData=>s.mainlineAnnotations??{revision:0,annotations:[]};
 const annotationBase=mainlineIntentSchema.extend({
  expectedRevision:z.number().int().nonnegative(),idempotencyKey:safeId,roundId:safeId,
- goalHash:z.string().regex(/^[a-f0-9]{64}$/),previousId:safeId.nullable(),author:text
+ goalHash:z.string().regex(/^[a-f0-9]{64}$/),previousId:safeId.nullable(),author:text,
+ delivery:roundDeliverySchema.optional()
 });
 const sha=z.string().regex(/^[a-f0-9]{64}$/);
 export const mainlineAnnotationSchema=z.union([
@@ -71,6 +82,18 @@ export function appendMainlineAnnotation(s:Session,raw:unknown,sourceHash:string
   throw new WorkflowError('STALE_MAINLINE','该轮次的来源或目标已过时，只能作为历史核查',409);
  const prior=[...data.annotations].reverse().find(a=>a.roundId===req.roundId);
  if((prior?.id??null)!==req.previousId)throw new WorkflowError('STALE_BASE','已有较新的轮次关联，请读取后核对',409);
+ if(req.delivery){
+  const ids=req.delivery.receiptIds;
+  if(new Set(ids).size!==ids.length||ids.some(id=>{
+   const receipt=s.verificationReceipts?.find(r=>r.id===id);
+   return !receipt||receipt.binding.roundId!==req.roundId||receipt.binding.goalHash!==req.goalHash||receipt.binding.sourceHash!==(historical?req.observedSourceHash:sourceHash)||receipt.sourceChanged;
+  }))throw new WorkflowError('REFERENCE_UNRESOLVED','交付说明只能引用同轮、同目标、同来源的实际回执');
+  const observations=req.delivery.observationIds??[];
+  if(new Set(observations).size!==observations.length||observations.some(id=>{
+   const observation=s.observations.find(o=>o.id===id);
+   return !observation?.qualified||!observation.roundIds?.includes(req.roundId)||observation.goalHash!==req.goalHash||observation.sourceHash!==(historical?req.observedSourceHash:sourceHash);
+  }))throw new WorkflowError('REFERENCE_UNRESOLVED','交付说明只能引用同轮、同目标、同来源的合格执行记录');
+ }
  const annotation:MainlineAnnotation={...req,id:`mainline-${randomUUID()}`,createdAt:new Date().toISOString(),requestHash};
  data.annotations.push(annotation);data.revision++;
  return annotation;
@@ -82,7 +105,7 @@ type Criterion=ScenarioSet['scenarios'][number]['criteria'][number];
 function matchingConditions(s:Session,round:RoundProjection,step:Step,journeyId:string,view:View,sourceHash:string){
  if(!round.proofEligible||step.state!=='source-supported')return [];
  const confirmation=activeConfirmation(s);
- if(!confirmation||confirmation.sourceHash!==sourceHash||confirmation.analysisAttemptId!==view.attemptId||confirmation.goalHash!==round.goalHash)return [];
+ if(!confirmation||confirmation.sourceHash!==sourceHash||!confirmationMapping(s,confirmation,view,sourceHash).applicable||confirmation.goalHash!==round.goalHash)return [];
  return round.conditionVerified.filter(c=>{
   const criteria=confirmation.scenarios.flatMap(scenario=>scenario.criteria.filter(criterion=>scenario.id===c.scenarioId&&criterion.id===c.criterionId));
   if(criteria.length!==1)return false;
@@ -100,9 +123,10 @@ function touchedPaths(round:RoundProjection,step:Step,view:View):string[]{
  const refs=[...step.refs,...targets.flatMap(t=>t.refs)];
  return [...new Set(round.deltas.filter(delta=>refs.some(ref=>ref.path===delta.path)).map(delta=>delta.path))];
 }
-function outcome(conditions:ReturnType<typeof matchingConditions>,touched:string[],status:string):string {
+function outcome(conditions:ReturnType<typeof matchingConditions>,touched:string[],status:string,required:number):string {
  if(conditions.some(c=>!['passed','unknown'].includes(c.result)))return 'failed-blocked';
- if(conditions.some(c=>c.result==='passed'))return 'verified-scoped';
+ const passed=conditions.filter(c=>c.result==='passed').length;
+ if(passed)return required>0&&passed===required?'verified-scoped':'partial-verified';
  if(['failed','cancelled','agent-failed'].includes(status))return 'work-failed';
  if(touched.length)return 'changed-unverified';
  return status==='running'?'active-intent':'intent-only';
@@ -151,7 +175,7 @@ function roundComparison(s:Session,round:RoundProjection,rounds:RoundProjection[
  const confirmation=activeConfirmation(s),sourceChanges=round.deltas.map(d=>({path:d.path,kind:d.kind,before:d.before,after:d.after}));
  const base={beforeSourceHash:round.before.sourceHash,afterSourceHash:round.after?.sourceHash??null,sourceChanges,goalHash:round.goalHash,
   goalVersion:s.goals.find(g=>g.hash===round.goalHash)?.version??null,confirmationId:confirmation?.goalHash===round.goalHash?confirmation.id:null,criteria:[] as {scenarioId:string;criterionId:string;text:string;before:ReturnType<typeof beforeCondition>;after:{status:ConditionResult;receiptIds:string[]};transition:string;reason:string}[],resolved:[] as string[],unverified:[] as string[],summary:'',nextReason:nextVerification};
- if(mappingState!=='confirmed'||!view||!journey||!round.after||!round.proofEligible||!confirmation||confirmation.sourceHash!==sourceHash||confirmation.analysisAttemptId!==view.attemptId)
+ if(mappingState!=='confirmed'||!view||!journey||!round.after||!round.proofEligible||!confirmation||confirmation.sourceHash!==sourceHash||!confirmationMapping(s,confirmation,view,sourceHash).applicable)
   return {...base,state:mappingState==='unknown'?'unmapped':'incomparable',summary:'当前目标、来源、分析、关联或轮次证据未同时匹配；保存的意图与旧回执只供核对。'};
  const applicable=confirmation.scenarios.flatMap(scenario=>scenario.criteria.filter(criterion=>criterion.mapping==='mapped'&&criterion.journeyIds.includes(journey.id)&&selected.some(step=>step.state==='source-supported'&&criterion.targetIds.some(id=>step.targetIds.includes(id))&&criterion.clauseIds.some(id=>step.clauseIds.includes(id)))).map(criterion=>({scenarioId:scenario.id,criterion})));
  if(!applicable.length)return {...base,state:'incomparable',summary:'所选步骤尚无已确认且映射明确的条件；需要先核对验证条件。'};
@@ -184,45 +208,47 @@ export function projectMainlineProgress(s:Session,sourceHash:string,roundProject
   const intentView=declared?savedReference(s,boundGoal,declared.viewAttemptId,declared.sourceHash):null;
   const intentJourney=intentView?.analysis.workflow?.journeys.find(j=>j.id===declared?.journeyId);
   const validIntentSteps=!!intentJourney&&!!declared&&new Set(declared.stepIds).size===declared.stepIds.length&&declared.stepIds.every(id=>intentJourney.observed.steps.some(step=>step.id===id));
-  const intentRelation=!declared?'unknown':!validIntentSteps?'unresolved':boundGoal!==goal?.hash?'old-goal':intentView===referenceView?'reference-visible':'pending-remap';
+  const continuity=declared?mappingContinuity(s,intentView,view,{clauseIds:intentJourney?.clauseIds??[],journeyIds:[declared.journeyId],targetIds:intentJourney?.observed.steps.filter(step=>declared.stepIds.includes(step.id)).flatMap(step=>step.targetIds)??[]}):'needs-review';
+  const intentRelation=!declared?'unknown':!validIntentSteps?'unresolved':boundGoal!==goal?.hash?'old-goal':intentView===referenceView||continuity==='unchanged-mapping'?'reference-visible':'pending-remap';
   const intentSteps=validIntentSteps?intentJourney!.observed.steps.filter(step=>declared!.stepIds.includes(step.id)).map(step=>({id:step.id,title:step.title,purpose:step.purpose})):[];
   let mappingState:'confirmed'|'stale'|'unknown'='unknown';
   if(declared){
    const valid=lastAnnotation?.interpretationMode!=='historical-intent'&&!!view&&!!goal&&boundGoal===goal.hash&&round.goalHash===goal.hash&&round.after?.sourceHash===sourceHash&&!round.sourceStale&&!round.stale&&
-    intentView===view&&validIntentSteps;
+    continuity!=='needs-review'&&validIntentSteps;
    mappingState=valid?'confirmed':'stale';
   }
   const journey=view?.analysis.workflow?.journeys.find(j=>j.id===declared?.journeyId);
   const steps=mappingState==='confirmed'&&view&&journey?journey.observed.steps.filter(step=>declared!.stepIds.includes(step.id)).map(step=>{
    const touched=touchedPaths(round,step,view),conditions=matchingConditions(s,round,step,journey.id,view,sourceHash);
-   return {id:step.id,title:step.title,touchedPaths:touched,conditions:conditions.map(c=>({scenarioId:c.scenarioId,criterionId:c.criterionId,text:c.text,result:c.result,recovered:c.recovered,receiptIds:c.receiptIds})),outcome:outcome(conditions,touched,round.status)};
+   return {id:step.id,title:step.title,touchedPaths:touched,conditions:conditions.map(c=>({scenarioId:c.scenarioId,criterionId:c.criterionId,text:c.text,result:c.result,recovered:c.recovered,receiptIds:c.receiptIds})),outcome:outcome(conditions,touched,round.status,activeConfirmation(s)?.scenarios.flatMap(sc=>sc.criteria).filter(c=>c.mapping==='mapped'&&c.journeyIds.includes(journey.id)&&c.targetIds.some(id=>step.targetIds.includes(id))&&c.clauseIds.some(id=>step.clauseIds.includes(id))).length??0)};
   }):[];
   const candidates=!declared&&view&&round.goalHash===goal?.hash&&round.after?.sourceHash===sourceHash?view.analysis.workflow!.journeys.flatMap(j=>j.observed.steps.flatMap(step=>{
    const paths=touchedPaths(round,step,view);return paths.length?[{journeyId:j.id,journeyTitle:j.title,stepId:step.id,stepTitle:step.title,paths}]:[];
   })):[];
   const confirmation=activeConfirmation(s),selected=journey?.observed.steps.filter(step=>declared?.stepIds.includes(step.id))??[];
-  const applicable=mappingState==='confirmed'&&view&&confirmation?.sourceHash===sourceHash&&confirmation.analysisAttemptId===view.attemptId?
+  const applicable=mappingState==='confirmed'&&view&&confirmation?.sourceHash===sourceHash&&confirmationMapping(s,confirmation,view,sourceHash).applicable?
    confirmation.scenarios.flatMap(scenario=>scenario.criteria.filter(criterion=>criterion.mapping==='mapped'&&criterion.journeyIds.includes(journey!.id)&&selected.some(step=>step.state==='source-supported'&&criterion.targetIds.some(id=>step.targetIds.includes(id))&&criterion.clauseIds.some(id=>step.clauseIds.includes(id))))):[];
   const matched=steps.flatMap(step=>step.conditions),unresolved=applicable.filter(c=>!matched.some(result=>result.criterionId===c.id&&result.result==='passed'));
   const scopedRemaining=mappingState==='confirmed'&&round.proofEligible&&confirmation?applicable.length?
    `所选步骤确认条件 ${applicable.length-unresolved.length}/${applicable.length} 限定通过；${unresolved.map(c=>c.text).join('；')||'整体旅程仍须核对'}`:'所选步骤尚无明确映射的确认条件；需核对旅程与条件映射。':round.remaining;
   const scopedNext=mappingState==='confirmed'&&round.proofEligible&&confirmation?unresolved.length?`验证条件：${unresolved[0].text}`:applicable.length?'复核所选步骤的完整使用结果和整体目标':'核对所选步骤的确认条件映射':round.next;
-  const changedPaths=round.deltas.map(d=>d.path),failed=steps.some(step=>step.outcome==='failed-blocked'),verified=steps.some(step=>step.outcome==='verified-scoped');
+  const changedPaths=round.deltas.map(d=>d.path),failed=steps.some(step=>step.outcome==='failed-blocked'),verified=steps.some(step=>['verified-scoped','partial-verified'].includes(step.outcome));
   const status=mappingState==='stale'?'stale':mappingState==='unknown'?'unmapped':failed?'failed-blocked':verified&&steps.every(step=>step.outcome==='verified-scoped')?'verified-scoped':verified?'partial-verified':steps.some(step=>step.outcome==='work-failed')?'work-failed':steps.some(step=>step.outcome==='changed-unverified')?'changed-unverified':round.status==='running'?'active-intent':'intent-only';
   const bound=s.goals.find(g=>g.hash===round.goalHash),goalClauses=round.clauseIds.map(id=>bound?.clauses.find(c=>c.id===id)?.text).filter((x):x is string=>!!x);
   const remainingGaps=mappingState==='confirmed'&&round.viewAttemptId===view?.attemptId?view.gaps.filter(g=>round.gapIds.includes(g.id)&&g.lifecycle==='open'&&selected.some(step=>g.targetIds.some(id=>step.targetIds.includes(id))&&g.clauseIds.some(id=>step.clauseIds.includes(id)))).map(g=>g.expected):[];
   const comparison=roundComparison(s,round,roundProjection.rounds,mappingState,view,journey,selected,steps.flatMap(step=>step.conditions),sourceHash,scopedNext);
   return {roundId:round.id,turnId:start?.turnId??null,connectionId:start?.connectionId??null,taskId:round.taskId,purpose:round.purpose,goalHash:round.goalHash,
-   mapping:{state:mappingState,intentRelation,origin:mappingOrigin,annotationId:lastAnnotation?.id??null,journeyId:declared?.journeyId??null,journeyTitle:intentJourney?.title??null,stepIds:declared?.stepIds??[],kind:declared?.kind??null,reason:declared?.reason??null,expectedVerification:declared?.expectedVerification??null,viewAttemptId:declared?.viewAttemptId??null,sourceHash:declared?.sourceHash??null,referenceGoalVersion:intentView?.goal?.version??null,observedSourceHash:lastAnnotation?.observedSourceHash??round.after?.sourceHash??null},
+   mapping:{state:mappingState,continuity,intentRelation,origin:mappingOrigin,annotationId:lastAnnotation?.id??null,journeyId:declared?.journeyId??null,journeyTitle:intentJourney?.title??null,stepIds:declared?.stepIds??[],kind:declared?.kind??null,reason:declared?.reason??null,expectedVerification:declared?.expectedVerification??null,viewAttemptId:declared?.viewAttemptId??null,sourceHash:declared?.sourceHash??null,referenceGoalVersion:intentView?.goal?.version??null,observedSourceHash:lastAnnotation?.observedSourceHash??round.after?.sourceHash??null},
+   delivery:lastAnnotation?.delivery?{...lastAnnotation.delivery,author:lastAnnotation.author,annotationId:lastAnnotation.id,sourceCurrent:boundGoal===goal?.hash&&round.after?.sourceHash===sourceHash&&(lastAnnotation.observedSourceHash??lastAnnotation.sourceHash)===sourceHash,current:mappingState==='confirmed'&&lastAnnotation.sourceHash===sourceHash}:null,
    status,executionStatus:round.status,goalClauses,steps,intentSteps,candidates,changedPaths,comparison,reported:round.reported,remaining:scopedRemaining,remainingGaps,nextVerification:scopedNext,
    sourceCoverage:round.sourceCoverage,proofEligible:round.proofEligible};
  });
  const journeys=(workflow?.journeys??[]).map(j=>{
   const related=rounds.filter(r=>r.mapping.intentRelation==='reference-visible'&&r.mapping.journeyId===j.id);
   return {id:j.id,title:j.title,steps:j.observed.steps.map(step=>({id:step.id,title:step.title,work:related.filter(r=>r.intentSteps.some(s=>s.id===step.id)).map(r=>({roundId:r.roundId,turnId:r.turnId,status:r.steps.find(s=>s.id===step.id)?.outcome??'stale'}))})),
-   feed:related.map(r=>({roundId:r.roundId,turnId:r.turnId,purpose:r.purpose,status:r.status,kind:r.mapping.kind,reason:r.mapping.reason,stepTitles:r.intentSteps.map(s=>s.title),remaining:r.remaining,comparison:r.comparison,nextVerification:r.mapping.state==='confirmed'?r.nextVerification:r.mapping.expectedVerification??r.nextVerification})).slice(-5).reverse(),
+   feed:related.map(r=>({roundId:r.roundId,turnId:r.turnId,purpose:r.purpose,status:r.status,kind:r.mapping.kind,reason:r.mapping.reason,delivery:r.delivery,stepTitles:r.intentSteps.map(s=>s.title),remaining:r.remaining,comparison:r.comparison,nextVerification:r.mapping.state==='confirmed'?r.nextVerification:r.mapping.expectedVerification??r.nextVerification})).slice(-5).reverse(),
    nextVerification:related.at(-1)?.nextVerification??'先核对该旅程的开发目的与条件验证。'};
  });
  return {revision:data.revision,sourceHash,goalHash:goal?.hash??null,viewAttemptId:view?.attemptId??null,status:view?'current':referenceView?'stale-source':'unknown-current-view',referenceViewAttemptId:referenceView?.attemptId??null,referenceSourceHash:referenceView?.source.hash??null,referenceGoalHash:referenceView?.goal?.hash??null,
-  annotations:data.annotations.map(a=>({id:a.id,roundId:a.roundId,previousId:a.previousId,createdAt:a.createdAt,author:a.author,journeyId:a.journeyId,stepIds:a.stepIds,kind:a.kind,reason:a.reason,expectedVerification:a.expectedVerification,goalHash:a.goalHash,sourceHash:a.sourceHash,viewAttemptId:a.viewAttemptId,interpretationMode:a.interpretationMode??null,observedSourceHash:a.observedSourceHash??null,expectedCurrentSourceHash:a.expectedCurrentSourceHash??null})),rounds,journeys};
+  annotations:data.annotations.map(a=>({id:a.id,roundId:a.roundId,previousId:a.previousId,createdAt:a.createdAt,author:a.author,journeyId:a.journeyId,stepIds:a.stepIds,kind:a.kind,reason:a.reason,expectedVerification:a.expectedVerification,delivery:a.delivery??null,goalHash:a.goalHash,sourceHash:a.sourceHash,viewAttemptId:a.viewAttemptId,interpretationMode:a.interpretationMode??null,observedSourceHash:a.observedSourceHash??null,expectedCurrentSourceHash:a.expectedCurrentSourceHash??null})),rounds,journeys};
 }

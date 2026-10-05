@@ -21,11 +21,27 @@ export function normalizeCodex(raw:unknown):{kind:RoundEvent['kind'];description
 // remains at the registered evidence path; only fixed labels and SHA256 enter state.
 export class CodexEventFollower {
  private timer:NodeJS.Timeout|undefined;private closed=false;
+ private selections=new Map<string,{revision:string;registrations:Registration[]}>();
  readonly policy:{maxRecordBytes:number};
- constructor(private rounds:RoundCoordinator,private read:(id:string)=>Session,private project:(id:string)=>Project,private ids:()=>string[],policy:unknown={}){this.policy=eventReadPolicySchema.parse(policy);}
+ constructor(private rounds:RoundCoordinator,private read:(id:string)=>Session,private project:(id:string)=>Project,private ids:()=>string[],policy:unknown={},private revision?:(id:string)=>string){this.policy=eventReadPolicySchema.parse(policy);}
  start(){if(this.timer||this.closed)return;this.poll();this.timer=setInterval(()=>this.poll(),1000);this.timer.unref();}
  stop(){this.closed=true;if(this.timer)clearInterval(this.timer);this.timer=undefined;}
- poll(){if(this.closed)return;for(const id of this.ids())for(const r of roundData(this.read(id)).registrations)if(r.binding.tool==='codex-exec'&&r.status!=='unsupported'&&r.status!=='sync-error'&&r.status!=='terminal'&&!r.binding.id.startsWith('obs-'))this.follow(id,r.binding.id);}
+ poll(){
+  if(this.closed)return;
+  for(const id of this.ids()){
+   const revision=this.revision?.(id),cached=this.selections.get(id);
+   const registrations=revision!==undefined&&cached?.revision===revision?cached.registrations:structuredClone(roundData(this.read(id)).registrations.filter(r=>r.binding.tool==='codex-exec'&&r.status!=='unsupported'&&r.status!=='sync-error'&&r.status!=='terminal'&&!r.binding.id.startsWith('obs-')));
+   if(revision!==undefined)this.selections.set(id,{revision,registrations});
+   for(const r of registrations){
+    // A previously observed absent producer is still checked every poll. Once
+    // it appears, normal follow performs identity, prefix and event validation.
+    if(r.status==='waiting'&&r.offset===0&&!r.delayedRecovery&&r.issue?.startsWith('STREAM_MISSING')){
+     try{evidenceFile(this.project(id),r.binding.stream);}catch(e){if((e as NodeJS.ErrnoException).code==='ENOENT')continue;}
+    }
+    this.follow(id,r.binding.id);
+   }
+  }
+ }
  follow(id:string,registrationId:string){
   let r=roundData(this.read(id)).registrations.find(r=>r.binding.id===registrationId);if(!r)throw new WorkflowError('REFERENCE_UNRESOLVED','登记不存在');if(r.binding.tool!=='codex-exec'||r.binding.id.startsWith('obs-'))throw new WorkflowError('FOLLOWER_ROUTE_REFUSED','选定会话由自动观察器拥有，不能由单轮 follower 重放');if(r.status==='unsupported')return r;
   const maxRecord=this.policy.maxRecordBytes;
@@ -44,7 +60,17 @@ export class CodexEventFollower {
   let fd:number|undefined;
   try{
    fd=openSync(evidenceFile(this.project(id),r.binding.stream),'r');const stat=fstatSync(fd),identity=`${stat.dev}:${stat.ino}`;
-   if(r.fileIdentity&&r.fileIdentity!==identity)throw new WorkflowError('STREAM_ROTATED','事件文件已轮换；保留原 cursor，须恢复原件或显式登记新的 attempt');
+   const rotated=!!r.fileIdentity&&r.fileIdentity!==identity;
+   if(rotated){
+    const accepted=roundData(this.read(id)).events.filter(e=>e.event.registrationId===registrationId);
+    // Polling never enters recovery. Even explicit replay may only rebind a
+    // complete terminal archive, with no unconsumed bytes or pending receipts.
+    const complete=recovering&&r.offset>0&&stat.size===r.offset&&r.line>0&&r.cursor===r.line
+     &&accepted.length===r.line&&accepted.every(e=>e.event.sequence<=r!.cursor)
+     &&accepted.some(e=>e.event.kind==='begin')
+     &&accepted.some(e=>e.event.sequence===r!.line&&['completed','failed','cancelled'].includes(e.event.kind));
+    if(!complete)throw new WorkflowError('STREAM_ROTATED','事件文件身份已变化；保留原 cursor。已完整消费的终局归档可显式 replay 同登记，严格核对等长完整前缀后恢复；活动流或变化内容须恢复原件');
+   }
    if(stat.size<r.offset)throw new WorkflowError('STREAM_TRUNCATED','事件流已截断；保留原 cursor');
    // Validate the consumed prefix on active polls and explicit replay; terminal
    // registrations are skipped by regular polling. Append-only is a contract,
@@ -52,6 +78,15 @@ export class CodexEventFollower {
    const hasher=createHash('sha256'),chunk=Buffer.alloc(65536);let position=0;
    while(position<r.offset){const n=readSync(fd,chunk,0,Math.min(chunk.length,r.offset-position),position);if(!n)throw new WorkflowError('STREAM_TRUNCATED','读取期间前缀被截断');hasher.update(chunk.subarray(0,n));position+=n;}
    if(hasher.copy().digest('hex')!==r.prefixHash)throw new WorkflowError('STREAM_CHANGED','已接收前缀发生变化；拒绝覆盖旧记录');
+   if(rotated){
+    const checked=fstatSync(fd);
+    if(checked.size!==r.offset||checked.mtimeMs!==stat.mtimeMs||checked.ctimeMs!==stat.ctimeMs)throw new WorkflowError('STREAM_CHANGED','终局归档在校验期间变化；保留原 cursor 和身份');
+    // This restores access to existing evidence only: no read/import loop,
+    // source capture, new event, cursor advance or manufactured progress.
+    history('recovered',null);
+    this.rounds.update(id,registrationId,{fileIdentity:identity,status:'terminal',issue:null,recoveryThroughOffset:null,lastCheckedAt:new Date().toISOString()});
+    return roundData(this.read(id)).registrations.find(x=>x.binding.id===registrationId)!;
+   }
    if(recovering)this.rounds.update(id,registrationId,{recoveryThroughOffset:stat.size});
    const buffer=Buffer.alloc(Math.min(readBudget,stat.size-r.offset));const count=readSync(fd,buffer,0,buffer.length,r.offset);const data=buffer.subarray(0,count);let start=0,lastStatus:Registration['status']='caught-up';
    while(start<data.length){const end=data.indexOf(10,start);if(end<0){if(data.length-start>maxRecord)throw new WorkflowError('STREAM_RECORD_LIMIT','事件超过单条大小限制');lastStatus=r.offset+data.length-start<stat.size?'following':'partial-line';break;}if(end-start>maxRecord)throw new WorkflowError('STREAM_RECORD_LIMIT','事件超过单条大小限制');

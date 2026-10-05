@@ -37,10 +37,17 @@ function nativeHeader(fd:number,limit:number,project:Project,version:string){
 export class CodexSessionObserver {
  private timer:NodeJS.Timeout|undefined;private closed=false;private polling=false;
  private idleFiles=new Map<string,{signature:string;offset:number}>();
+ private selections=new Map<string,{revision:string;connectionIds:string[]}>();
  constructor(private store:SessionStore,private rounds:RoundCoordinator,private read:(id:string)=>Session,private project:(id:string)=>Project,private ids:()=>string[],private maxRecordBytes:number){}
  start(){if(this.timer||this.closed)return;this.timer=setInterval(()=>this.pollAll(),1000);this.timer.unref();this.pollAll();}
  stop(){this.closed=true;if(this.timer)clearInterval(this.timer);this.timer=undefined;}
- pollAll(){if(this.closed||this.polling)return;this.polling=true;try{for(const id of this.ids())for(const c of activityData(this.read(id)).connections)if(c.status!=='sync-error'&&c.status!=='unsupported')this.poll(id,c.id);}finally{this.polling=false;}}
+ pollAll(){if(this.closed||this.polling)return;this.polling=true;try{
+  for(const id of this.ids()){
+   const revision=this.store.observationRevision(id),cached=this.selections.get(id);
+   const connectionIds=cached?.revision===revision?cached.connectionIds:activityData(this.read(id)).connections.filter(c=>c.status!=='sync-error'&&c.status!=='unsupported').map(c=>c.id);
+   this.selections.set(id,{revision,connectionIds});for(const connectionId of connectionIds)this.poll(id,connectionId);
+  }
+ }finally{this.polling=false;}}
  connect(id:string,raw:unknown):ActivityConnection{
   const req=activityConnectionSchema.parse(raw),p=this.project(id),s=this.read(id);
   if(req.projectId!==id||realpathSync(req.repoRoot)!==p.sourceRoot||realpathSync(req.worktreeRoot)!==p.sourceRoot)throw new WorkflowError('IDENTITY_UNRESOLVED','连接须属于已登记工作树');
@@ -75,7 +82,7 @@ export class CodexSessionObserver {
   const connection:ActivityConnection={...req,createdAt:now(),offset:req.start==='from-now'?size:0,prefixHash:hashBefore,fileIdentity:identity,line:0,cursor:0,status:'caught-up',issue:null,lastReceivedAt:null,lastCheckedAt:null,currentTurnId:null,currentRoundId:null,roundSequence:0,threadId:selectedThread,metadataVerified:req.format==='codex-native-rollout'&&req.start==='from-now'&&size>0,baselineSnapshotId:baseline,ignoredCount:0,history:[]};
   d.connections.push(connection);d.revision++;this.store.save(fresh);return connection;
  }
- replay(id:string,connectionId:string){const c=this.connection(id,connectionId);if(c.status!=='sync-error')return c;const s=this.read(id),entry=activityData(s).connections.find(x=>x.id===connectionId)!;entry.history.push({kind:'replay',at:now(),issue:entry.issue,offset:entry.offset,cursor:entry.cursor});entry.status='caught-up';entry.issue=null;this.store.save(s);const result=this.poll(id,connectionId);if(result.status!=='sync-error'){const fresh=this.read(id),current=activityData(fresh).connections.find(x=>x.id===connectionId)!;current.history.push({kind:'recovered',at:now(),issue:null,offset:current.offset,cursor:current.cursor});this.store.save(fresh);}return result;}
+ replay(id:string,connectionId:string){const c=this.connection(id,connectionId);if(c.status!=='sync-error')return c;const s=this.read(id),entry=activityData(s).connections.find(x=>x.id===connectionId)!;entry.history.push({kind:'replay',at:now(),issue:entry.issue,offset:entry.offset,cursor:entry.cursor});entry.recoveryRead??={fromOffset:entry.offset,throughOffset:null};entry.status='caught-up';entry.issue=null;this.store.save(s);return this.poll(id,connectionId);}
  private connection(id:string,connectionId:string){const c=activityData(this.read(id)).connections.find(x=>x.id===connectionId);if(!c)throw new WorkflowError('REFERENCE_UNRESOLVED','观察连接不存在');return c;}
  poll(id:string,connectionId:string):ActivityConnection{
   const cacheKey=`${id}:${connectionId}`;let fd:number|undefined;
@@ -93,9 +100,12 @@ export class CodexSessionObserver {
    }
    const signature=`${identity}:${stat.size}:${stat.mtimeMs}:${stat.ctimeMs}`;
    const cached=this.idleFiles.get(cacheKey);
-   if(cached?.signature===signature&&cached.offset===c.offset&&(c.offset===stat.size||c.status==='partial-line'))return c;
+   if(!c.recoveryRead&&cached?.signature===signature&&cached.offset===c.offset&&(c.offset===stat.size||c.status==='partial-line'))return c;
    const hasher=prefixHasher(fd,c.offset);
    if(hasher.copy().digest('hex')!==c.prefixHash)throw new WorkflowError('STREAM_CHANGED','已接收前缀被改写；保留原 cursor');
+   // Fix the backlog boundary once. New live turns appended after it are not
+   // historical recovery; a restart keeps the original recovery range.
+   if(c.recoveryRead?.throughOffset===null){c.recoveryRead.throughOffset=stat.size;activityData(s).revision++;this.store.save(s);}
    const readStart=c.offset,data=Buffer.alloc(Math.min(readBudget,stat.size-readStart)),count=readSync(fd,data,0,data.length,readStart);
    let start=0,lines=0,activities=0,partial=false,dirty=false;
    while(start<count&&lines<maxLinesPerPoll&&activities<maxActivitiesPerPoll){
@@ -113,6 +123,7 @@ export class CodexSessionObserver {
     start=end+1;
    }
    c=activityData(s).connections.find(x=>x.id===connectionId)!;
+   if(c.recoveryRead?.throughOffset!=null&&c.offset>=c.recoveryRead.throughOffset){c.history.push({kind:'recovered',at:now(),issue:null,offset:c.offset,cursor:c.cursor});delete c.recoveryRead;dirty=true;}
    const status=c.offset<stat.size?(partial?'partial-line':'following'):'caught-up';
    if(c.status!==status){c.status=status;dirty=true;}
    if(dirty)this.store.save(s);
@@ -177,7 +188,7 @@ export class CodexSessionObserver {
    const alreadyBegan=roundData(s).events.some(e=>e.event.registrationId===registration.binding.id&&e.event.kind==='begin');
    const kind:RoundEvent['kind']=fact.kind==='turn-start'&&!alreadyBegan?'begin':fact.kind==='turn-complete'?'completed':fact.kind==='turn-cancelled'?'cancelled':fact.kind==='turn-failed'||fact.kind==='error'?'failed':'checkpoint';
    const description:RoundEvent['description']=fact.kind==='turn-start'&&!alreadyBegan?'turn-start':fact.kind==='turn-complete'?'turn-completed':fact.kind==='turn-cancelled'?'cancelled':fact.kind==='turn-failed'||fact.kind==='error'?'turn-failed':fact.kind==='agent-report'?'agent-report-retained-locally':'activity-observed';
-   if(!existing)this.rounds.accept(id,{key,projectId:id,registrationId:registration.binding.id,roundId,attemptId:registration.binding.attemptId,producerId:registration.binding.producerId,sequence:registration.cursor+1,dependsOn:[],kind,description,rawHash,observedAt:now(),sourceSnapshotId:snapshot?.id??null},true,s);
+   if(!existing)this.rounds.accept(id,{key,projectId:id,registrationId:registration.binding.id,roundId,attemptId:registration.binding.attemptId,producerId:registration.binding.producerId,sequence:registration.cursor+1,dependsOn:[],kind,description,rawHash,observedAt:now(),sourceSnapshotId:snapshot?.id??null,...(c.recoveryRead?.throughOffset!=null&&nextOffset>c.recoveryRead.fromOffset&&c.offset<c.recoveryRead.throughOffset?{sourceTiming:'recovery-read-time' as const}:{})},true,s);
    if(terminal)registration.status='terminal';
    c.roundSequence=existing?.event.sequence??registration.cursor;
   }

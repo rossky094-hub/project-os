@@ -1,68 +1,377 @@
 {
-  "schemaVersion": "project-os.alpha-source-manifest.v1",
+  "schemaVersion": "project-os.alpha-source-manifest.v2",
+  "releaseVersion": "0.1.0-alpha.2",
+  "preparedAt": "2026-10-05T11:35:49.345381+00:00",
   "provenance": {
-    "sourceProject": "Project OS ontology pilot",
-    "commit": "09dcd47b99d0515c620af578389461da5f59f420",
-    "selection": "Committed source and test bytes at the stated commit; unrelated local changes excluded",
-    "sha256Meaning": "Each files value is the SHA-256 of the exported file. It also equals the committed source SHA-256 except for the listed portability edit."
+    "sourceProject": "Project OS current working tree",
+    "sourceGitBaseCommit": "09dcd47b99d0515c620af578389461da5f59f420",
+    "publicBaseCommit": "ef26bfd311b202a48e916fef2f90899874f7121d",
+    "selection": "Explicitly selected reviewed current working-tree files; base commit identifies the starting point, not a commit of every exported file",
+    "sameCaseRegisteredSourceHash": "6b0b44e442c6dd3f89dc46d28552d5c652f55c9b27d21aa9e067bfbd4416c8f6",
+    "sha256Meaning": "Final exported bytes. This file excludes its own hash to avoid recursive hashing; the source archive has a separate checksum."
   },
   "files": {
-    "src/core/human-goal-workflow/source.ts": "da623128298af8cbaf39dfe7f050bb90b173434736515142ce6d6969ae12dfe4",
-    "src/core/human-goal-workflow/agent-activity.ts": "11e38729c56342304e21e7f7771ec84eef2b895c2e95162fcdfe1ba91d89fd07",
-    "src/core/human-goal-workflow/codex-session.ts": "dc7e36f675628d05d623368df709760db4cd5d19997f9818c64a2ab47f5974f1",
-    "src/core/human-goal-workflow/types.ts": "db7c0fd765e12cacc86c4f519af7944e7bafbdd50bd85a66bb586508ed5674ac",
-    "src/core/human-goal-workflow/mainline-progress.ts": "2e0f9f52e26a280d7a34a84e25b8ebde19771a644b218c62c5bd9b1813cde676",
-    "src/core/human-goal-workflow/analyzer.ts": "7261570c4132e2c5bd1a812183c671f9336d4c1edad8dfb8a73a3f767bc3f5ae",
-    "src/core/human-goal-workflow/codex-events.ts": "a1411150289bb61f1da25393c4d60e12d352730f98f9fe136fe4d8d9fb240ae8",
-    "src/core/human-goal-workflow/verification.ts": "cec2703b318cfbf5e8b24532e76578dbc16883df47a585cb7c25012aa70d2ac1",
-    "src/core/human-goal-workflow/rounds.ts": "d9d5d9c3df935f55f5d3bbec239df94f05bd4ae578e48b6c9b5c2393decee8cb",
-    "src/core/human-goal-workflow/service.ts": "7907f46dece2f66f718e29e0c4241f277a49f91b6ffcdec357cb0b3b8e53b05b",
-    "src/core/human-goal-workflow/store.ts": "964def3849f1b48a9bdf1f6f7107f749f109733158946b6ab908de86204b7712",
-    "src/core/human-goal-workflow/scenarios.ts": "a49abd4afdc159ef9917d3566654a8485bc3a3967acb3f9234bfda27df0fb22d",
-    "src/human-goal-workbench/client.js": "8b1d0dddfe483c73c8af7aa22e3eaab50e61ee28a48c501001020d193a0576e6",
-    "src/human-goal-workbench/index.html": "e4648c0af6d743cca9721a5106e6968e32874c0e9052476e13e023dd371b8a6c",
-    "src/human-goal-workbench/styles.css": "8558a73f6f25ed16ef7bfd3b11ff591fca6bbe1b597af8c49fb14a864badffc9",
-    "src/human-goal-workbench/server.ts": "73eb8f0f913eb4293028827cccd8871c35c35d5feb42b248f25f10ba34275858",
+    ".gitignore": "d5ce99561b82ae122f88612f7bc81eb36dce635b023205729eeb055002c8341e",
+    "AGENTS.md": "238566e6dd902ad948ab4e202cda4de4c8ec04c9e805c7f76e55bb09085962c5",
+    "LICENSE": "c52e02b072c32a6f9380864ee995b61eb5d084c02b2468f4336bda9a7c6f5ac9",
+    "README.md": "7ba1ee3a22f82c68328d9d3fd2bc9db24920479bff268cb48e6cdd25309c5c87",
+    "docs/ALPHA.md": "8602cfd2032932bcc794f6efa9682f4a3842356429274e9c171edf953cde744d",
+    "docs/CHANGELOG.md": "c240cd343048263295d824733e435fbc16180882de8653a4abe5a626903c50fd",
+    "docs/PRD.md": "87a46327b131b8263b01cbf993ad61998a8e68448cd0d70a23a05b942904e008",
+    "docs/RELEASE-NOTES.md": "1a12297e0581bcb303450465e85be7af6d87507bde55bc5f3ce3947f6a007841",
+    "docs/SELF-CASE.md": "f94156cdac2f3c0acdad895f689493918b1e9e688e1505f1dbfa93433232acb0",
+    "docs/SPEC.md": "2b28cd2f9d3102d7a29065dfab6c19e5152af9fcb7783c7bea9fb4874566a906",
+    "docs/VALIDATION.md": "5eb906fd1e886d0e2108de7161ed0beed579f1320aa27a580afe6fc1904a8adf",
+    "docs/demo.md": "816d9593267f8a4923c552520ea619ef6ed6dd1113c3349ca8d1262870ab6a01",
+    "docs/media/alpha.1/01-product-mainline.png": "0ace5f90336eaa8e93316c7336897b161e3c5e2ff6146cd4c088e7b6bfecdad1",
+    "docs/media/alpha.1/02-round-evidence.png": "30170634c315a73dbdea0158b63715ea1647b3555d0eb6966179d558e52bf757",
+    "docs/media/alpha.1/03-remaining-gaps.png": "856f804a7684789ad8ac249c0d797eb66a7e3a26748322cf97cfe8a2c18a7921",
+    "docs/media/alpha.1/project-os-case-walkthrough.mp4": "b0340aa45c8a1dfe5e9b5ec1531558e457b10e3fff84211d6588caf9bd6079fe",
+    "docs/media/fresh-install.png": "2962afa0c7a4e0cf86b787ad727c7520484f1e2c5168d3e2307990b2fb00153d",
+    "docs/media/whole-goal-workbench.png": "3a9b0a39154640b79ea10609ad2f37308131436b88f194a5beb57b47d04ed190",
+    "package-lock.json": "3a582353faf889a8cfb4105f516730f29167e6e0a79adbab12ad26d98e3eec92",
+    "package.json": "0436b7f6cc829b379be85d8ecbbfcce9c4f3414e7234b2410daef1304221119b",
     "scripts/human-goal-workbench.ts": "d2861df018d2d1c1862b8414894e10490090fc095657026524b762f457f61f8f",
     "scripts/project-os-rounds.ts": "f34d0cc47fb0db028bfb3e02d98e6ec1e536314eb9c619706133e1f88b1357bd",
-    "scripts/project-os-watch.ts": "d310a3481316da63e65c74ee11d3e5c10a0b837ed32e6d263312a81e30ed62dd",
     "scripts/project-os-verify.ts": "fe604bc4a60a85dfa7ef9ecf34473204adf64d782dc571fd876aabe2c9dcde45",
-    "tests/core/human-goal-workflow.test.ts": "622e1c322ba11c8ce21998a51ab0f868152bc627df08ec557243e04e5da35f30",
-    "tests/core/project-os-agent-activity.test.ts": "1e1c37917aec2ec5856fed327f032724925283aa0a1866aec3ca361eccb03875",
-    "tests/core/project-os-alpha-loop.test.ts": "5d1fe7afc8320d4931bd38c6a0d6b607d959ceb5effe050f908a63398bc7acd1",
-    "tests/core/project-os-analysis-identifiers.test.ts": "44e397ec573b21d2ea01aa0579808d592dc5fa293d77012e5696fffb757900ad",
-    "tests/core/project-os-closed-loop.test.ts": "b08df696e06a65b28e02da43327711860879c1baa6778a09453a2a31c6322db4",
-    "tests/core/project-os-consolidation-input.test.ts": "fdfc2c5b08b815b63419a47c95502ec2c597c3e46eb6993b989263bc9c7569fe",
-    "tests/core/project-os-mainline-progress.test.ts": "c08cf4d93884a11b8f6e99a617de4392d3bd084ba55fc16132d7872a412e9fdf",
-    "tests/core/project-os-rounds.test.ts": "ca44739231cd24d3ce1c8c408def8396acb35b4657cd6d97c846d1242d457b96",
-    "tests/cases/human-goal-workbench.test.ts": "1480017242bd581e1e16f3511de84bca95303895fe5d89de05c191b680c2a767",
+    "scripts/project-os-watch.ts": "d310a3481316da63e65c74ee11d3e5c10a0b837ed32e6d263312a81e30ed62dd",
+    "scripts/setup.ts": "3a1086fd81f8a3cb8a35282755712eb46f70227c48922e5340e120d87f05ea08",
+    "src/core/human-goal-workflow/agent-activity.ts": "0498cc9368708f90c8aeba843d3e67b99dbdbf133f8cfddd78fdecf44fc19647",
+    "src/core/human-goal-workflow/analyzer.ts": "36fdf1f2d35da768a48d54c8dee1dc7b5deba1173bbbe083b485322bcae69f2d",
+    "src/core/human-goal-workflow/codex-events.ts": "2db22af4bf923b37719956ec206245bed7c2d6b0e155a42f133a7724d9d79672",
+    "src/core/human-goal-workflow/codex-session.ts": "eba292c483b538a7a360f1e0e2afe0260b3329f5b951bd5ea43764705054e1db",
+    "src/core/human-goal-workflow/mainline-progress.ts": "2fb3c8057e0ded99aec6575be462603353061e876693295e88668daf08bb4c92",
+    "src/core/human-goal-workflow/rounds.ts": "3e029a45f10d30e60b4c65ee26ce24ad4b1714cb41672a62c05fcbe7b49fff42",
+    "src/core/human-goal-workflow/scenarios.ts": "b417eb1bff2466c7b87bfd66ccbe3aa1c9c0c266d0b3598035c9ad4691fcb734",
+    "src/core/human-goal-workflow/service.ts": "d3e80536fddd9ab2a1d18aaa2c2d7317cfced1a3e8eb399599d45bc23f097dcd",
+    "src/core/human-goal-workflow/source.ts": "125b0afd04ae5f78d17a18c973ea7c8959792b04bb0847a0c3e046d21d012b2a",
+    "src/core/human-goal-workflow/store.ts": "e326d18effece8535c68170f8fe9d59f437c1b0768625f8b4f7fd007c981b853",
+    "src/core/human-goal-workflow/types.ts": "ab9958c5a7ffa2607c6da27fb1a56746ed5c630008177f7817d46611c91120a8",
+    "src/core/human-goal-workflow/verification.ts": "480d53af3172a54d2a3913342277148c4bd3aed4f52d93796e3540909616a981",
+    "src/human-goal-workbench/client.js": "b3eff722df26dc82a1db4cb7e8ff87b894d1b51aea6ea636d662e8cdb4983e58",
+    "src/human-goal-workbench/index.html": "c4ee864ebb248ee83ff8d2cde6b35dd4535cf84929ad5100f95b438034f1bf46",
+    "src/human-goal-workbench/server.ts": "fa280295f22504b52cec5151903472e19b001f94ca5b03bc6a7287f7eb2bd760",
+    "src/human-goal-workbench/styles.css": "3dc52880de89a7e4db74b415058be0afaa1ba233dcd24f247ef0d94668c3c971",
+    "tests/cases/human-goal-workbench.test.ts": "d546bf8ca7af2b612e6b3d0a6dd3082f5dc99bc2247a90bddebe0d26c3c1d382",
     "tests/cases/project-os-agent-activity.test.ts": "a58ca0774432516ec773fa2c088ea9f1da980fb1ebcccef7ad42d895fdca739f",
     "tests/cases/project-os-alpha-loop.test.ts": "525fa37add7c2dea3a9cbc81f86df5590eb5446fa5344fed2b994d62e38b3898",
-    "tests/cases/project-os-closed-loop.test.ts": "53f1b4570d1651b4dff0b4ca09f9a436343e33f64048d321937a9cdb50f70a84",
-    "tests/cases/project-os-mainline-progress.test.ts": "c0cf9a40d4a5f347dd2ef2caa68445cf0a729313204e4fe54876c6710a0622d0",
-    "tests/cases/project-os-rounds.test.ts": "ec1020891d96c5f802d5e46fc691bc7fb674f417ea3860f79a17d1f9c330eba0"
+    "tests/cases/project-os-closed-loop.test.ts": "a694b1e0f8e1ee3fd57fd3e2e49f644199181a2001816a5125cb84f3e848a05f",
+    "tests/cases/project-os-mainline-progress.test.ts": "16101f4b77c511fd8cf830b1f599e26f3665e6a883f6a5797ede46fbf913c0ba",
+    "tests/cases/project-os-rounds.test.ts": "ec1020891d96c5f802d5e46fc691bc7fb674f417ea3860f79a17d1f9c330eba0",
+    "tests/core/human-goal-workflow.test.ts": "58a150ac0aab52ff0b8ec73836f6d6297af4b87e5e39e710b6a3ac273cb01ac3",
+    "tests/core/project-os-agent-activity.test.ts": "f0be96a89f8ae768b0060f2121b1c44807fcfd131e4307c8afa84b8cf236b416",
+    "tests/core/project-os-alpha-loop.test.ts": "5d1fe7afc8320d4931bd38c6a0d6b607d959ceb5effe050f908a63398bc7acd1",
+    "tests/core/project-os-analysis-identifiers.test.ts": "44e397ec573b21d2ea01aa0579808d592dc5fa293d77012e5696fffb757900ad",
+    "tests/core/project-os-analyzer-isolation.test.ts": "4cac0f1254b55064d514c45c9f706e90529b25aa93dc9becbb6b8e8935d51072",
+    "tests/core/project-os-business-workspace.test.ts": "204ed933b36f4471645e9e1e71a39a710477d4ea34794151d03df553b3736e12",
+    "tests/core/project-os-closed-loop.test.ts": "c6f8c9152c97e27e20cb97af9f8ef8e58ca1c7f433fe306d9522b64905adf2bc",
+    "tests/core/project-os-consolidation-input.test.ts": "ddfc59798920778bb358f01c83d8482a525a4f5381f7f0ee2fa0e3cbda2dfab1",
+    "tests/core/project-os-mainline-progress.test.ts": "57ec09143ef3ed52b071c1cf10c85046abddabb65111b560a3fceb13ab47d372",
+    "tests/core/project-os-recovery-attribution.test.ts": "f5704bcef20badea6be8a4d799b1b62717a32789f41b67b02251e3be587e6e86",
+    "tests/core/project-os-rounds.test.ts": "cb0e1edbf3a7f75300eddfd1a8c2cdef0f85250a7622c0fd498a330ce4731451",
+    "tests/core/project-os-source-policy.test.ts": "2b781ff3d8c1fb041f4fd374d04b84fb1019ef5e92a5bb2379d5fed1e8a93068",
+    "tests/setup.test.ts": "3fd5d5a0596b68f31db503e3323d17697315f12622715cf4c6ca9ad8a8b03776",
+    "tsconfig.json": "8bfe88dfe5db8e5c2ddd61f78b7589076666ab381abc31bfd51e4da8e41eb64d",
+    "vitest.config.ts": "0deebcd02ee13e664db826c426e4b22181e282952c252509be295a1dcdc6fae2"
+  },
+  "currentWorkingTreeSources": {
+    "scripts/human-goal-workbench.ts": {
+      "sourceSha256": "d2861df018d2d1c1862b8414894e10490090fc095657026524b762f457f61f8f",
+      "exportedSha256": "d2861df018d2d1c1862b8414894e10490090fc095657026524b762f457f61f8f"
+    },
+    "scripts/project-os-rounds.ts": {
+      "sourceSha256": "f34d0cc47fb0db028bfb3e02d98e6ec1e536314eb9c619706133e1f88b1357bd",
+      "exportedSha256": "f34d0cc47fb0db028bfb3e02d98e6ec1e536314eb9c619706133e1f88b1357bd"
+    },
+    "scripts/project-os-verify.ts": {
+      "sourceSha256": "fe604bc4a60a85dfa7ef9ecf34473204adf64d782dc571fd876aabe2c9dcde45",
+      "exportedSha256": "fe604bc4a60a85dfa7ef9ecf34473204adf64d782dc571fd876aabe2c9dcde45"
+    },
+    "scripts/project-os-watch.ts": {
+      "sourceSha256": "d310a3481316da63e65c74ee11d3e5c10a0b837ed32e6d263312a81e30ed62dd",
+      "exportedSha256": "d310a3481316da63e65c74ee11d3e5c10a0b837ed32e6d263312a81e30ed62dd"
+    },
+    "src/core/human-goal-workflow/agent-activity.ts": {
+      "sourceSha256": "0498cc9368708f90c8aeba843d3e67b99dbdbf133f8cfddd78fdecf44fc19647",
+      "exportedSha256": "0498cc9368708f90c8aeba843d3e67b99dbdbf133f8cfddd78fdecf44fc19647"
+    },
+    "src/core/human-goal-workflow/analyzer.ts": {
+      "sourceSha256": "36fdf1f2d35da768a48d54c8dee1dc7b5deba1173bbbe083b485322bcae69f2d",
+      "exportedSha256": "36fdf1f2d35da768a48d54c8dee1dc7b5deba1173bbbe083b485322bcae69f2d"
+    },
+    "src/core/human-goal-workflow/codex-events.ts": {
+      "sourceSha256": "2db22af4bf923b37719956ec206245bed7c2d6b0e155a42f133a7724d9d79672",
+      "exportedSha256": "2db22af4bf923b37719956ec206245bed7c2d6b0e155a42f133a7724d9d79672"
+    },
+    "src/core/human-goal-workflow/codex-session.ts": {
+      "sourceSha256": "eba292c483b538a7a360f1e0e2afe0260b3329f5b951bd5ea43764705054e1db",
+      "exportedSha256": "eba292c483b538a7a360f1e0e2afe0260b3329f5b951bd5ea43764705054e1db"
+    },
+    "src/core/human-goal-workflow/mainline-progress.ts": {
+      "sourceSha256": "2fb3c8057e0ded99aec6575be462603353061e876693295e88668daf08bb4c92",
+      "exportedSha256": "2fb3c8057e0ded99aec6575be462603353061e876693295e88668daf08bb4c92"
+    },
+    "src/core/human-goal-workflow/rounds.ts": {
+      "sourceSha256": "3e029a45f10d30e60b4c65ee26ce24ad4b1714cb41672a62c05fcbe7b49fff42",
+      "exportedSha256": "3e029a45f10d30e60b4c65ee26ce24ad4b1714cb41672a62c05fcbe7b49fff42"
+    },
+    "src/core/human-goal-workflow/scenarios.ts": {
+      "sourceSha256": "b417eb1bff2466c7b87bfd66ccbe3aa1c9c0c266d0b3598035c9ad4691fcb734",
+      "exportedSha256": "b417eb1bff2466c7b87bfd66ccbe3aa1c9c0c266d0b3598035c9ad4691fcb734"
+    },
+    "src/core/human-goal-workflow/service.ts": {
+      "sourceSha256": "d3e80536fddd9ab2a1d18aaa2c2d7317cfced1a3e8eb399599d45bc23f097dcd",
+      "exportedSha256": "d3e80536fddd9ab2a1d18aaa2c2d7317cfced1a3e8eb399599d45bc23f097dcd"
+    },
+    "src/core/human-goal-workflow/source.ts": {
+      "sourceSha256": "125b0afd04ae5f78d17a18c973ea7c8959792b04bb0847a0c3e046d21d012b2a",
+      "exportedSha256": "125b0afd04ae5f78d17a18c973ea7c8959792b04bb0847a0c3e046d21d012b2a"
+    },
+    "src/core/human-goal-workflow/store.ts": {
+      "sourceSha256": "e326d18effece8535c68170f8fe9d59f437c1b0768625f8b4f7fd007c981b853",
+      "exportedSha256": "e326d18effece8535c68170f8fe9d59f437c1b0768625f8b4f7fd007c981b853"
+    },
+    "src/core/human-goal-workflow/types.ts": {
+      "sourceSha256": "ab9958c5a7ffa2607c6da27fb1a56746ed5c630008177f7817d46611c91120a8",
+      "exportedSha256": "ab9958c5a7ffa2607c6da27fb1a56746ed5c630008177f7817d46611c91120a8"
+    },
+    "src/core/human-goal-workflow/verification.ts": {
+      "sourceSha256": "480d53af3172a54d2a3913342277148c4bd3aed4f52d93796e3540909616a981",
+      "exportedSha256": "480d53af3172a54d2a3913342277148c4bd3aed4f52d93796e3540909616a981"
+    },
+    "src/human-goal-workbench/client.js": {
+      "sourceSha256": "b3eff722df26dc82a1db4cb7e8ff87b894d1b51aea6ea636d662e8cdb4983e58",
+      "exportedSha256": "b3eff722df26dc82a1db4cb7e8ff87b894d1b51aea6ea636d662e8cdb4983e58"
+    },
+    "src/human-goal-workbench/index.html": {
+      "sourceSha256": "c4ee864ebb248ee83ff8d2cde6b35dd4535cf84929ad5100f95b438034f1bf46",
+      "exportedSha256": "c4ee864ebb248ee83ff8d2cde6b35dd4535cf84929ad5100f95b438034f1bf46"
+    },
+    "src/human-goal-workbench/server.ts": {
+      "sourceSha256": "fa280295f22504b52cec5151903472e19b001f94ca5b03bc6a7287f7eb2bd760",
+      "exportedSha256": "fa280295f22504b52cec5151903472e19b001f94ca5b03bc6a7287f7eb2bd760"
+    },
+    "src/human-goal-workbench/styles.css": {
+      "sourceSha256": "3dc52880de89a7e4db74b415058be0afaa1ba233dcd24f247ef0d94668c3c971",
+      "exportedSha256": "3dc52880de89a7e4db74b415058be0afaa1ba233dcd24f247ef0d94668c3c971"
+    },
+    "tests/cases/human-goal-workbench.test.ts": {
+      "sourceSha256": "d546bf8ca7af2b612e6b3d0a6dd3082f5dc99bc2247a90bddebe0d26c3c1d382",
+      "exportedSha256": "d546bf8ca7af2b612e6b3d0a6dd3082f5dc99bc2247a90bddebe0d26c3c1d382"
+    },
+    "tests/cases/project-os-agent-activity.test.ts": {
+      "sourceSha256": "a58ca0774432516ec773fa2c088ea9f1da980fb1ebcccef7ad42d895fdca739f",
+      "exportedSha256": "a58ca0774432516ec773fa2c088ea9f1da980fb1ebcccef7ad42d895fdca739f"
+    },
+    "tests/cases/project-os-alpha-loop.test.ts": {
+      "sourceSha256": "525fa37add7c2dea3a9cbc81f86df5590eb5446fa5344fed2b994d62e38b3898",
+      "exportedSha256": "525fa37add7c2dea3a9cbc81f86df5590eb5446fa5344fed2b994d62e38b3898"
+    },
+    "tests/cases/project-os-closed-loop.test.ts": {
+      "sourceSha256": "a694b1e0f8e1ee3fd57fd3e2e49f644199181a2001816a5125cb84f3e848a05f",
+      "exportedSha256": "a694b1e0f8e1ee3fd57fd3e2e49f644199181a2001816a5125cb84f3e848a05f"
+    },
+    "tests/cases/project-os-mainline-progress.test.ts": {
+      "sourceSha256": "16101f4b77c511fd8cf830b1f599e26f3665e6a883f6a5797ede46fbf913c0ba",
+      "exportedSha256": "16101f4b77c511fd8cf830b1f599e26f3665e6a883f6a5797ede46fbf913c0ba"
+    },
+    "tests/cases/project-os-rounds.test.ts": {
+      "sourceSha256": "ec1020891d96c5f802d5e46fc691bc7fb674f417ea3860f79a17d1f9c330eba0",
+      "exportedSha256": "ec1020891d96c5f802d5e46fc691bc7fb674f417ea3860f79a17d1f9c330eba0"
+    },
+    "tests/core/human-goal-workflow.test.ts": {
+      "sourceSha256": "58a150ac0aab52ff0b8ec73836f6d6297af4b87e5e39e710b6a3ac273cb01ac3",
+      "exportedSha256": "58a150ac0aab52ff0b8ec73836f6d6297af4b87e5e39e710b6a3ac273cb01ac3"
+    },
+    "tests/core/project-os-agent-activity.test.ts": {
+      "sourceSha256": "f0be96a89f8ae768b0060f2121b1c44807fcfd131e4307c8afa84b8cf236b416",
+      "exportedSha256": "f0be96a89f8ae768b0060f2121b1c44807fcfd131e4307c8afa84b8cf236b416"
+    },
+    "tests/core/project-os-alpha-loop.test.ts": {
+      "sourceSha256": "5d1fe7afc8320d4931bd38c6a0d6b607d959ceb5effe050f908a63398bc7acd1",
+      "exportedSha256": "5d1fe7afc8320d4931bd38c6a0d6b607d959ceb5effe050f908a63398bc7acd1"
+    },
+    "tests/core/project-os-analysis-identifiers.test.ts": {
+      "sourceSha256": "44e397ec573b21d2ea01aa0579808d592dc5fa293d77012e5696fffb757900ad",
+      "exportedSha256": "44e397ec573b21d2ea01aa0579808d592dc5fa293d77012e5696fffb757900ad"
+    },
+    "tests/core/project-os-analyzer-isolation.test.ts": {
+      "sourceSha256": "4cac0f1254b55064d514c45c9f706e90529b25aa93dc9becbb6b8e8935d51072",
+      "exportedSha256": "4cac0f1254b55064d514c45c9f706e90529b25aa93dc9becbb6b8e8935d51072"
+    },
+    "tests/core/project-os-business-workspace.test.ts": {
+      "sourceSha256": "204ed933b36f4471645e9e1e71a39a710477d4ea34794151d03df553b3736e12",
+      "exportedSha256": "204ed933b36f4471645e9e1e71a39a710477d4ea34794151d03df553b3736e12"
+    },
+    "tests/core/project-os-closed-loop.test.ts": {
+      "sourceSha256": "c6f8c9152c97e27e20cb97af9f8ef8e58ca1c7f433fe306d9522b64905adf2bc",
+      "exportedSha256": "c6f8c9152c97e27e20cb97af9f8ef8e58ca1c7f433fe306d9522b64905adf2bc"
+    },
+    "tests/core/project-os-consolidation-input.test.ts": {
+      "sourceSha256": "e6e73511e575f1f35ab61b9b44bf760099e25b89586d0885d5a28ce2258df242",
+      "exportedSha256": "ddfc59798920778bb358f01c83d8482a525a4f5381f7f0ee2fa0e3cbda2dfab1"
+    },
+    "tests/core/project-os-mainline-progress.test.ts": {
+      "sourceSha256": "57ec09143ef3ed52b071c1cf10c85046abddabb65111b560a3fceb13ab47d372",
+      "exportedSha256": "57ec09143ef3ed52b071c1cf10c85046abddabb65111b560a3fceb13ab47d372"
+    },
+    "tests/core/project-os-recovery-attribution.test.ts": {
+      "sourceSha256": "f5704bcef20badea6be8a4d799b1b62717a32789f41b67b02251e3be587e6e86",
+      "exportedSha256": "f5704bcef20badea6be8a4d799b1b62717a32789f41b67b02251e3be587e6e86"
+    },
+    "tests/core/project-os-rounds.test.ts": {
+      "sourceSha256": "cb0e1edbf3a7f75300eddfd1a8c2cdef0f85250a7622c0fd498a330ce4731451",
+      "exportedSha256": "cb0e1edbf3a7f75300eddfd1a8c2cdef0f85250a7622c0fd498a330ce4731451"
+    },
+    "tests/core/project-os-source-policy.test.ts": {
+      "sourceSha256": "2b781ff3d8c1fb041f4fd374d04b84fb1019ef5e92a5bb2379d5fed1e8a93068",
+      "exportedSha256": "2b781ff3d8c1fb041f4fd374d04b84fb1019ef5e92a5bb2379d5fed1e8a93068"
+    }
   },
   "portabilityEdits": [
     {
       "path": "tests/core/project-os-consolidation-input.test.ts",
-      "committedSha256": "e6e73511e575f1f35ab61b9b44bf760099e25b89586d0885d5a28ce2258df242",
-      "exportedSha256": "fdfc2c5b08b815b63419a47c95502ec2c597c3e46eb6993b989263bc9c7569fe",
-      "change": "Replace only the optional private preflight artifact path with PROJECT_OS_ANALYSIS_INPUT_PREFLIGHT or a missing relative optional fixture; retain skip-if-unavailable and all assertions."
+      "change": "Only the optional private preflight input location is portable; skip-if-missing and every assertion retained",
+      "sourceSha256": "e6e73511e575f1f35ab61b9b44bf760099e25b89586d0885d5a28ce2258df242",
+      "exportedSha256": "ddfc59798920778bb358f01c83d8482a525a4f5381f7f0ee2fa0e3cbda2dfab1"
+    }
+  ],
+  "publicBaseSources": [
+    {
+      "path": "LICENSE",
+      "sourcePublicPath": "LICENSE",
+      "sourcePublicBlob": "677a2dc53faacd4bde0d710cf1df65275c81bcd9",
+      "selection": "exact current public base",
+      "finalExportedSha256": "c52e02b072c32a6f9380864ee995b61eb5d084c02b2468f4336bda9a7c6f5ac9"
+    },
+    {
+      "path": "scripts/setup.ts",
+      "sourcePublicPath": "scripts/setup.ts",
+      "sourcePublicBlob": "3a0d07fb1003b5b5279068b653c5aae855b825ef",
+      "selection": "exact current public base",
+      "finalExportedSha256": "3a1086fd81f8a3cb8a35282755712eb46f70227c48922e5340e120d87f05ea08"
+    },
+    {
+      "path": "tests/setup.test.ts",
+      "sourcePublicPath": "tests/setup.test.ts",
+      "sourcePublicBlob": "16274d54b2c6dfb687d70f6ecf7858423c47896f",
+      "selection": "exact current public base",
+      "finalExportedSha256": "3fd5d5a0596b68f31db503e3323d17697315f12622715cf4c6ca9ad8a8b03776"
+    },
+    {
+      "path": "tsconfig.json",
+      "sourcePublicPath": "tsconfig.json",
+      "sourcePublicBlob": "eb0930cc6757737427d4c33cddb6d0ce439e14c9",
+      "selection": "exact current public base",
+      "finalExportedSha256": "8bfe88dfe5db8e5c2ddd61f78b7589076666ab381abc31bfd51e4da8e41eb64d"
+    },
+    {
+      "path": "vitest.config.ts",
+      "sourcePublicPath": "vitest.config.ts",
+      "sourcePublicBlob": "ce104c918b1930967e06c2759b1b3be8aeb5e29b",
+      "selection": "exact current public base",
+      "finalExportedSha256": "0deebcd02ee13e664db826c426e4b22181e282952c252509be295a1dcdc6fae2"
+    },
+    {
+      "path": ".gitignore",
+      "sourcePublicPath": ".gitignore",
+      "sourcePublicBlob": "6be107eeb09ef7e40093d9a3c988ac7755b8c876",
+      "selection": "public base plus additional runtime ignores",
+      "finalExportedSha256": "d5ce99561b82ae122f88612f7bc81eb36dce635b023205729eeb055002c8341e"
+    },
+    {
+      "path": "docs/media/alpha.1/01-product-mainline.png",
+      "sourcePublicPath": "docs/media/01-product-mainline.png",
+      "sourcePublicBlob": "2086f9b297afdfde0a07a7c7571fe8cdaefa025b",
+      "selection": "exact current public base",
+      "finalExportedSha256": "0ace5f90336eaa8e93316c7336897b161e3c5e2ff6146cd4c088e7b6bfecdad1"
+    },
+    {
+      "path": "docs/media/alpha.1/02-round-evidence.png",
+      "sourcePublicPath": "docs/media/02-round-evidence.png",
+      "sourcePublicBlob": "74f73d03f791e6278ce96087ae7433a19946eaf1",
+      "selection": "exact current public base",
+      "finalExportedSha256": "30170634c315a73dbdea0158b63715ea1647b3555d0eb6966179d558e52bf757"
+    },
+    {
+      "path": "docs/media/alpha.1/03-remaining-gaps.png",
+      "sourcePublicPath": "docs/media/03-remaining-gaps.png",
+      "sourcePublicBlob": "7938e6853932d7a32a357005bc87e46b752e5e96",
+      "selection": "exact current public base",
+      "finalExportedSha256": "856f804a7684789ad8ac249c0d797eb66a7e3a26748322cf97cfe8a2c18a7921"
+    },
+    {
+      "path": "docs/media/alpha.1/project-os-case-walkthrough.mp4",
+      "sourcePublicPath": "docs/media/project-os-case-walkthrough.mp4",
+      "sourcePublicBlob": "29136682b42106cc3cef5f96ead0482737f1cdf4",
+      "selection": "exact current public base",
+      "finalExportedSha256": "b0340aa45c8a1dfe5e9b5ec1531558e457b10e3fff84211d6588caf9bd6079fe"
     }
   ],
   "packageAuthoredFiles": [
-    "LICENSE",
-    "README.md",
     "AGENTS.md",
-    "docs/PRD.md",
-    "docs/SPEC.md",
+    "README.md",
     "docs/ALPHA.md",
-    "scripts/setup.ts",
-    "tests/setup.test.ts",
-    "package.json",
+    "docs/CHANGELOG.md",
+    "docs/PRD.md",
+    "docs/RELEASE-NOTES.md",
+    "docs/SELF-CASE.md",
+    "docs/SPEC.md",
+    "docs/VALIDATION.md",
+    "docs/demo.md",
+    "docs/media/fresh-install.png",
+    "docs/media/whole-goal-workbench.png",
     "package-lock.json",
-    "tsconfig.json",
-    "vitest.config.ts",
-    "source-manifest.json"
-  ]
+    "package.json"
+  ],
+  "verification": {
+    "publicPackageTests": {
+      "files": 19,
+      "passed": 284,
+      "failed": 0,
+      "optionalSkipped": 1,
+      "skippedReason": "Optional private frozen-input artifact absent; all assertions retained"
+    },
+    "build": "passed",
+    "clientSyntax": "passed",
+    "independentLockedInstall": "passed",
+    "actualStartupAndNormalReopen": "passed; 14 presence/value fields unchanged, no new model call",
+    "browserStartupAndKeyboard": "passed; no goal answers supplied",
+    "originalCase": "See docs/SELF-CASE.md; software evidence is scoped, not independent human acceptance"
+  },
+  "excluded": [
+    "original Git objects and history",
+    "private subject cases",
+    "raw model requests and session logs",
+    "runtime data and .local",
+    "node_modules and dist",
+    "unrelated adapters and legacy consumers"
+  ],
+  "limitations": [
+    "Current Codex 0.160.0 automatic event adaptation is unverified; the actual self-case uses explicit manual events",
+    "Independent novice comprehension and unfamiliar-project business acceptance remain unverified"
+  ],
+  "publicationPreparation": {
+    "preparedAt": "2026-10-05T13:41:34.307965+00:00",
+    "validatedCandidateArchiveSha256": "95387dc46d1783ad8d26207ba4543a1ce562b80dc544bf0350b30ad070762e69",
+    "documentationEdits": [
+      {
+        "path": "README.md",
+        "candidateSha256": "0ae12f2eee72a4fe563ceb0f417a01e9e27abcd15806e53afee1e42a2e72192c",
+        "publishedSha256": "7ba1ee3a22f82c68328d9d3fd2bc9db24920479bff268cb48e6cdd25309c5c87"
+      },
+      {
+        "path": "docs/VALIDATION.md",
+        "candidateSha256": "c4645ac50cef4448ec5257d628325d9aa1b34ae25b266a0abc0a0fee034ef5e1",
+        "publishedSha256": "5eb906fd1e886d0e2108de7161ed0beed579f1320aa27a580afe6fc1904a8adf"
+      },
+      {
+        "path": "docs/CHANGELOG.md",
+        "candidateSha256": "be3fe676e9853d741842474f3b8906ade3f5e4e52d784d941e174bae26040bf5",
+        "publishedSha256": "c240cd343048263295d824733e435fbc16180882de8653a4abe5a626903c50fd"
+      }
+    ],
+    "implementationAndTestsUnchanged": true,
+    "publicBaseCommit": "ef26bfd311b202a48e916fef2f90899874f7121d"
+  }
 }

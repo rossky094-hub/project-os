@@ -1,31 +1,47 @@
-# Project OS Alpha 实现约束
+# Project OS Alpha 实现与证据边界
 
-## 独立包与入口
+版本 0.1.0-alpha.2。产品目标见 [PRD](PRD.md)，操作见 [ALPHA](ALPHA.md)。
 
-package.json 和 package-lock.json 固定源码预览的 Node 依赖。npm run setup 使用 tsx 运行 scripts/setup.ts，npm start 使用 tsx 运行 scripts/human-goal-workbench.ts serve --config .local/config.json。npm run build 执行 TypeScript 编译，包含 src、scripts、tests，输出到忽略的 dist/。服务中的页面资源通过源码模块相对路径读取 src/human-goal-workbench 下的 HTML、CSS 和 JS；dist/ 没有这些静态文件，不能单独用 node dist/scripts/human-goal-workbench.js 当作完整运行包。
+## 职责与状态所有权
 
-src/core/human-goal-workflow 是状态和约束的单一实现。source.ts 在显式范围内枚举源文件，拒绝越界与符号链接，限制文件数量、类型和读取容量，并把未提供部分记为缺口。types.ts 定义严格 schema。service.ts 将目标、反馈、分析、场景确认、观察和回执绑定至代次与项目身份；store.ts 以单写者锁、不可变状态对象和原子指针保存。analyzer.ts 构造受限输入，通过配置的 Codex CLI 以只读分析请求生成结构化结果，并记录调用与输出。模型输出的引用、ID、已发现/拟需状态由本地代码校验；静态支持仍不等于行为验证。
+src/core/human-goal-workflow 是目标与证据的实现边界。source.ts 只读取显式范围并记录缺口；types.ts 提供严格结构；service.ts 协调目标、反馈、分析、确认与回执。store.ts 对数据目录持有单写锁，以不可变对象和原子指针保存。
 
-## 范围与本地数据
+rounds.ts、codex-events.ts、codex-session.ts 与 agent-activity.ts 记录实际选定流、显式事件、来源起点、补读与结束。mainline-progress.ts 以真实轮次快照、人工关联和独立回执派生进展。scenarios.ts 与 verification.ts 判断当前确认、有限条件及回执适用性。src/human-goal-workbench 是 loopback HTTP 与页面投影；scripts 提供本地 CLI 和可移植 setup。
 
-setup 要求 --source 与至少一个 --scope，可重复 --scope、--exclude、--evidence；--id、--label、--revision、--case-role 和 --data 可选。范围和排除项相对来源根，范围必须存在。证据根需已存在，之后只可通过登记根索引与相对路径读取原件。数据目标不能处在来源根或本包中，也不能包含它们；.local/data 是指向外部数据目录的本地链接，.local/config.json 保存精确登记。若登记范围将覆盖 .local/config.json 或 .local/data，setup 拒绝并要求缩窄范围或显式排除。已有本地配置与链接不会被覆盖。
+多个服务不得共同写入同一 dataDir。setup 将本地配置放在 .local/config.json，.local/data 指向包及来源根之外的数据目录；拒绝已存在配置、越界范围及会读取自身数据的范围。
 
-配置的 project.sourceKind 默认为 working-tree，revision 默认为 working-tree-unpinned；这不是冻结提交的证明。数据、原始分析请求、事件记录和验证原件均为本地私有材料，不能提交至源码预览。首次分析前查看页面“检查范围”中的选中文件、跳过项和读取缺口。source.partial 或未映射条件不能扩大成全仓结论。
+## 三层关系与完整目标
 
-## 三种关系和状态变更
+产品 journey 的步骤与 sequence、branch、feedback 关系需要来源和业务解释；工具的五步使用导航不是被分析项目的实际流程。实现 module 与 edge 标注调用、数据或依赖等类型及确定性；import 不足以证明运行成功。运行 trace 与条件回执保留实际上下文，不扩大为静态全图验证。
 
-- 工作主线的 journey 包含 observed 与 desired 步骤，链接需要明确的 sequence、branch 或 feedback 条件。实际步骤只有在来源和目标映射成立时才可标记 source-supported；未知步骤继续标记 unknown。
-- 实现 modules 与 edges 表示代码职责和连接。边记录关系类型与确定性；import 至多支持依赖，不自动成为调用或运行轨迹。
-- rounds、agent-activity 与 mainline-progress 记录选定事件、轮次来源快照及人工主线关联。关联引用目标 hash、来源 hash、分析 attempt、旅程和步骤；旧关联以追加记录保存。事件读取状态和 Agent 报告与独立行为验证分开。
+默认整体目标按原条款显示目标、期望、当前解释、适用条件、轮次与差距。最新局部报告折叠呈现，完整目标和整体判断保持可达。共同当前行动来自 closedLoop.nextActionDetails；历史作者的 nextAction/nextCheck 不覆盖当前诊断。目标、来源、反馈或证据变化后先更新整体判断。
 
-自动观察的明确适配范围：Codex exec JSONL 0.155.0-alpha.2.6 或 0.155.0-alpha.9.2；Codex native rollout 0.155.0-alpha.9.2。其他版本（包括 0.155.0-alpha.16）不可凭近似版本号当作已支持。登记的证据根、流身份、工作树和目标绑定不一致时不得自动关联。人工轮次登记也需要真实已有基线；历史流不能冒充刚开始的 live 流。
+人的总体目标与模块期望有独立修正入口。模型输出是候选解释，不能成为人类目标、条件接受或执行授权。读取缺口、未确认关系和不可比前后保持未知。
 
-## 确认条件与验证回执
+## 只读模型分析
 
-模型提出的 scenarios 先经人核对、可修改后确认。verificationContext 只在当前目标、来源分析、确认条件和登记轮次相互匹配时产生。verificationChecks[projectId] 中的每个检查含 id、label、argv、prerequisites 和 bindings；bindings 把唯一 assertionId 精确映射到已确认的 scenarioId/criterionId。检查从本地 CLI 选择，直接以 argv 和来源根 cwd 启动，不经 shell；网页没有执行命令路由。
+analyzer.ts 构造已登记输入，并以 Codex CLI 的 read-only 沙箱执行。每次先读取当前 MCP 元数据，对该次调用禁用启用的继承 MCP，确认有效配置仍为禁用后才发送源码。保留既有模型、认证、规则与 Hook，不修改全局配置。元数据可能含凭据，记录仅保存服务名称、状态与哈希。失败、取消、调用记录和输出留在本地数据中。
 
-检查程序用一行 PROJECT_OS_ASSERTION 加 JSON 输出 assertionId、status、actual、evidence。支持 passed、behavior-failed、missing-capability、environment-blocked、unknown；只有退出码为零且结构化断言唯一有效时，passed 才被接纳。进程退出码本身不是条件通过。CLI 记录前提、输出、源变化和绑定，使用独占新文件保存 receipt。导入时必须提供已登记 evidenceRoot 的 rootIndex、相对路径和文件 SHA-256；服务重算回执 hash、检查配置、目标、条件、轮次及时间绑定。来源改变、环境缺失或旧条件不会被折算为当前通过。
+登记的源码摘录、目标、反馈和相关状态发送给使用者配置的模型服务。传输在固定容量内保持源码与原话，元数据压缩须逐字重建；仍超限时在模型启动前报 INPUT_TOO_LARGE，不静默截断。历史保全不要求每次模型请求携带所有旧轮正文。默认分析没有人为任务时限，仍支持取消和故障记录。
 
-读者可从 [ALPHA.md](ALPHA.md) 找到可移植的设置、断言映射和导入示例。当前私有案例、真实日志、授权材料和编译产物不属于公开源码输入；source-manifest.json 记录导出的已提交来源及唯一允许的测试路径可移植性编辑。
+## 轮次与恢复
 
-本公开包采用 [MIT 许可证](../LICENSE)，版权归 2026 rossky094-hub 所有；未导出的私人材料不在本包许可范围内。
+登记需要当前目标、明确工作树、目的、条款、真实开发前快照、工具版本和证据根。live 流必须在生产者开始前登记；已有历史需要真实旧基线并注明回放。rawHash、序列与依赖保留事件身份；EOF 不证明生产者在线。
+
+明确解析范围：Codex native/exec 0.155.0-alpha.9.2；exec 0.155.0-alpha.2.6。当前原案例的 0.160.0 使用显式手工事件，自动跟随未验证。其他版本不会从相近版本号猜测活动。手工登记、报告与结束不伪装为自动原生日志。
+
+补读固定范围及接收状态跨正常重开保存；恢复读取时间与历史执行时间分别处理。后来完成的证明不能自动回填旧轮。前后比较以本轮已捕获起始快照的时间固定边界，之后同源检查点不移动“此前”；无合格此前回执显示未知。原失败及旧关联保留。
+
+## 确认、实际检查与适用性
+
+人的场景确认保存原文字和映射。重新分析后，仅当目标、来源及相关映射依据不变、实际接续记录成立时原确认适用；否则要求核对，不按相同 ID 沿用证明。
+
+verificationChecks 中的检查含固定 argv、前提及 assertionId 到 scenarioId/criterionId 的映射。检查只由本地 CLI 执行；HTTP 没有任意命令执行路由。程序输出 PROJECT_OS_ASSERTION 加唯一结构化 JSON，状态区分 passed、behavior-failed、missing-capability、environment-blocked、unknown。退出零或 Agent 报告不足以通过条件。
+
+回执以独占新文件保存，导入时核对证据根、相对路径、文件 SHA、检查配置、目标、来源、确认条件、轮次和时间。当前复测仅按相同检查身份与非重叠执行时序接续；旧失败不删除，并发、错源或不同检查不能按导入顺序覆盖。页面能打开实际命令与输出。
+
+## 发布声明
+
+source-manifest.json 记录实际导出来源、逐文件哈希及有限可移植编辑。基线提交只说明起点，当前工作树修改已明确纳入；原仓库历史、私人案例、会话原件与运行数据不在公开包。
+
+合成测试验证实现约束；原案例真实模型、检查与重开另有范围。公开包安装、构建、测试和启动证明软件消费路径，不证明独立新手效果或陌生项目准确率。MIT 许可见包根 LICENSE。

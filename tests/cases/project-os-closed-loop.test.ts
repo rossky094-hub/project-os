@@ -44,3 +44,39 @@ it('runtime badges use explicit target/clause coverage, open exact evidence by k
  mode='mixed';await w.eval('refresh(true)');expect(d.querySelector('[data-id="main"] .runtime-badge').dataset.runtimeStatus).toBe('mixed');
  w.setHistoricalForTest('historical');const historical=d.querySelector('[data-step-id="start"] .runtime-badge');expect(historical.dataset.runtimeStatus).toBe('unavailable');historical.dispatchEvent(new w.KeyboardEvent('keydown',{key:' ',bubbles:true}));expect(d.querySelector('#dialog-body').textContent).toContain('历史或过时图不使用当前目标的运行证据');expect(d.querySelector('#dialog-body').textContent).not.toContain('receipt-node');
 });
+
+it('shows uncovered goals and lets a user supplement proposals without replacing confirmed wording',async()=>{
+ const {s,config}=await fixture();
+ s.feedback('self',{expectedGeneration:s.read('self').generation,idempotencyKey:'expanded-goal',originalText:'Preserve original and report changes',kind:'desired-change',author:'fixture owner',provenance:'synthetic test',clauses:[{id:'goal',text:'Preserve original',importance:'core'},{id:'changes',text:'Report changes',importance:'core'}]});await s.idle();
+ const current=s.read('self'),proposal=current.scenarioSets!.at(-1)!;
+ proposal.scenarios.push({...structuredClone(proposal.scenarios[0]),id:'changes-scenario',title:'Review actual changes',clauseIds:['changes'],criteria:[{...structuredClone(proposal.scenarios[0].criteria[0]),id:'changes-criterion',clauseIds:['changes'],text:'Actual changes are visible'}]});s.store.save(current);
+ const confirmed=structuredClone(proposal.scenarios.slice(0,1));confirmed[0].title='Human wording retained';
+ s.reviewScenarios('self',{expectedGeneration:current.generation,idempotencyKey:'partial-confirm',proposalId:proposal.id,decision:'confirm',author:'fixture owner',roundId:null,scenarios:confirmed,analyze:false});
+ const {w,buttons,posts}=await domFixture(s,config),click=(name:string)=>{const b=buttons().find(b=>b.textContent===name);expect(b).toBeTruthy();b.click();};
+ click('核对场景与条件');
+ expect(w.document.querySelector('#scenario-coverage').textContent).toContain('Report changes：未设关键条件');
+ click('补入草稿：Review actual changes');
+ expect(posts).toHaveLength(0);
+ expect(w.document.querySelector('#scenario-coverage').textContent).toContain('Report changes：已有条件，映射待核对');
+ expect(w.document.querySelector('#dialog-body fieldset textarea').value).toBe('Human wording retained');
+ await w.eval('refresh(true)');
+ expect(w.document.querySelectorAll('#dialog-body fieldset')).toHaveLength(2);
+ click('确认这一组场景与条件');await new Promise(r=>setTimeout(r,30));
+ expect(posts.at(-1).scenarios.map((x:any)=>x.title)).toEqual(['Human wording retained','Review actual changes']);
+ expect(s.read('self').scenarioSets!.filter(x=>x.status==='confirmed')).toHaveLength(2);
+ expect(s.closedLoop('self').status).not.toBe('verified');
+});
+
+it('offers changed same-ID proposals as separate drafts without replacing the human scenario',async()=>{
+ const {s,config}=await fixture();let current=s.read('self');const proposal=current.scenarioSets![0];
+ s.reviewScenarios('self',{expectedGeneration:current.generation,idempotencyKey:'same-id-confirm',proposalId:proposal.id,decision:'confirm',author:'fixture owner',roundId:null,scenarios:proposal.scenarios,analyze:false});
+ current=s.read('self');current.scenarioSets![0].scenarios[0].then='New proposed outcome';current.scenarioSets![0].scenarios[0].criteria[0].text='New meaning under the same ID';s.store.save(current);
+ const {w,buttons,posts}=await domFixture(s,config);buttons().find(b=>b.textContent==='核对场景与条件').click();
+ expect(w.document.querySelector('#dialog-body').textContent).toContain('同 ID 提议有变化');
+ const add=buttons().find(b=>b.textContent==='另存为补充草稿：Read current goal');expect(add).toBeTruthy();add.click();
+ expect(w.document.querySelectorAll('#dialog-body fieldset')).toHaveLength(2);
+ expect(buttons().filter(b=>b.textContent==='另存为补充草稿：Read current goal')).toHaveLength(0);
+ buttons().find(b=>b.textContent==='确认这一组场景与条件').click();await new Promise(r=>setTimeout(r,30));
+ const scenarios=posts.at(-1).scenarios;expect(scenarios[0].then).toBe('Original is retained');expect(scenarios[1].then).toBe('New proposed outcome');
+ const ids=scenarios.flatMap((x:any)=>[x.id,...x.criteria.map((c:any)=>c.id)]);expect(new Set(ids).size).toBe(ids.length);
+});

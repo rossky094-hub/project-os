@@ -23,7 +23,7 @@ const extensions = new Set(['.ts','.tsx','.js','.jsx','.mjs','.cjs','.py','.json
 function priority(p: string): number { return /^(README\.md|package\.json|pyproject\.toml)$/i.test(p) ? -1 : /(^|\/)(tests?|docs?|fixtures?|archive)(\/|$)/i.test(p) ? 3 : /\.(py|ts|tsx|js|jsx)$/.test(p) ? 0 : /(^|\/)(package\.json|pyproject\.toml|README.md)$/.test(p) ? 1 : 2; }
 export function discoverSource(project: Project, limits: { maxFiles?: number; maxBytes?: number; perFileBytes?: number } = {}): SourceSnapshot {
   const root = realpathSync(project.sourceRoot), files: string[] = [], omitted: SourceSnapshot['omitted'] = []; let entries = 0;
-  const maxFiles = Math.min(200,limits.maxFiles ?? 200), maxBytes = Math.max(0,Math.min(750000,limits.maxBytes ?? 750000)), perFile = Math.max(0,Math.min(200000,limits.perFileBytes ?? 200000));
+  const maxFiles = Math.min(200,limits.maxFiles ?? 200), maxBytes = Math.max(0,Math.min(1048576,limits.maxBytes ?? project.sourceReadPolicy?.maxBytes ?? 750000)), perFile = Math.max(0,Math.min(200000,limits.perFileBytes ?? 200000));
   function walk(path: string) {
     if (++entries > 10000) throw new WorkflowError('SOURCE_INVENTORY_LIMIT','超过 10000 个目录项，请缩小登记范围');
     if(project.exclude?.some(x=>contained(resolve(root,x),resolve(root,path)))){omitted.push({path,reason:'configured exclusion'});return;}

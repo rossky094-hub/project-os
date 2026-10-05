@@ -57,6 +57,30 @@ it('keeps unknown work as a candidate, then saves a confirmed association and ap
  expect(after.annotations).toHaveLength(2);
 });
 
+it('keeps a reader-facing delivery separate from proof, preserves revisions and rejects another round or source receipt',async()=>{
+ const f=await fixture();addConfirmation(f.service,f.current.hash);
+ const delivery={title:'See the new answer',goalConnection:'Know what this round changed',before:'The answer was hidden',after:'The answer is visible',evidenceSummary:'No independent observation yet',receiptIds:[],remaining:'Reader comprehension is unknown',nextAction:'Check one visible answer',nextCheck:'Compare it with the requested answer'};
+ f.service.annotateMainline('self',f.intent('round-a','ja','sa',{delivery}));
+ let p=projectMainlineProgress(f.service.read('self'),f.current.hash);
+ expect(p.rounds[0].delivery).toMatchObject({...delivery,current:true,author:'owner'});
+ expect(p.rounds[0].status).toBe('changed-unverified');expect(p.rounds[0].steps[0].conditions).toEqual([]);
+ expect(p.journeys[0].feed[0].delivery).toEqual(p.rounds[0].delivery);
+ let s=f.service.read('self');s.verificationReceipts=[receipt(f.service,'round-b','criterion-b','passed','other-round',1,2),receipt(f.service,'round-a','criterion-a','passed','current-round',1,2)];f.service.store.save(s);
+ const before=hash(f.service.read('self'));
+ for(const ids of [['missing'],['other-round'],['current-round','current-round']])expect(()=>f.service.annotateMainline('self',f.intent('round-a','ja','sa',{delivery:{...delivery,receiptIds:ids}}))).toThrow('实际回执');
+ expect(hash(f.service.read('self'))).toBe(before);
+ f.service.annotateMainline('self',f.intent('round-a','ja','sa',{delivery:{...delivery,after:'A corrected visible answer',receiptIds:['current-round']}}));
+ const reopened=await f.reopen();p=projectMainlineProgress(reopened.read('self'),f.current.hash);
+ expect(p.annotations[0].delivery?.after).toBe('The answer is visible');expect(p.rounds[0].delivery?.after).toBe('A corrected visible answer');
+ appendFileSync(join(f.source,'a.ts'),'// source changes\n');p=projectMainlineProgress(reopened.read('self'),discoverSource(reopened.project('self')).hash);
+ expect(p.rounds[0].delivery?.current).toBe(false);expect(p.rounds[0].delivery?.sourceCurrent).toBe(false);expect(p.rounds[0].steps).toEqual([]);
+ const observation=reopened.rounds.checkpoint('self','registration-round-a');
+ reopened.annotateMainline('self',f.intent('round-a','ja','sa',{interpretationMode:'historical-intent',observedSourceHash:observation.sourceHash,expectedCurrentSourceHash:observation.sourceHash,delivery:{...delivery,after:'Current code observation; analysis pending'}}));
+ p=projectMainlineProgress(reopened.read('self'),observation.sourceHash);
+ expect(p.rounds[0].delivery).toMatchObject({sourceCurrent:true,current:false,after:'Current code observation; analysis pending'});
+ expect(p.rounds[0].steps).toEqual([]);expect(p.rounds[0].status).toBe('stale');
+});
+
 it('rejects unresolved references and stale versions without altering the saved goal or native round',async()=>{
  const f=await fixture(),base=f.intent('round-a','ja','sa'),before=hash(f.service.read('self'));
  for(const changed of [{journeyId:'missing'},{stepIds:['missing']},{roundId:'missing'},{sourceHash:hash('old')},{viewAttemptId:'old-view'},{goalHash:hash('old')},{previousId:'unknown'}])
@@ -141,4 +165,15 @@ it('connects a selected current journey and step but refuses stale or unknown co
  f.service.activity.poll('self','connection');const progress=projectMainlineProgress(f.service.read('self'),f.current.hash);
  expect(progress.rounds.at(-1)?.mapping).toMatchObject({state:'confirmed',origin:'connection',journeyId:'ja',stepIds:['sa']});
  expect(progress.rounds.at(-1)?.status).toBe('intent-only');
+});
+
+it('does not label a step fully verified when another mapped condition has no evidence',async()=>{
+ const f=await fixture();f.service.annotateMainline('self',f.intent('round-a','ja','sa'));addConfirmation(f.service,f.current.hash);
+ let s=f.service.read('self'),set=s.scenarioSets![0];
+ set.scenarios[0].criteria.push({...set.scenarios[0].criteria[0],id:'criterion-a-missing',text:'Still needs a real observable result'});
+ const {hash:oldHash,...body}=set;set.hash=hash(body);f.service.store.save(s);
+ s=f.service.read('self');s.verificationReceipts=[receipt(f.service,'round-a','criterion-a','passed','one-pass',1,2)];f.service.store.save(s);
+ const p=projectMainlineProgress(f.service.read('self'),f.current.hash),round=p.rounds[0];
+ expect(round.remaining).toContain('1/2');expect(round.status).toBe('partial-verified');expect(round.steps[0].outcome).toBe('partial-verified');
+ expect(round.nextVerification).toContain('Still needs a real observable result');
 });

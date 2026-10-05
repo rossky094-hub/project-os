@@ -13,3 +13,7 @@ tmp/
 # boundary. Ignore accidental pnpm artifacts from local script execution.
 pnpm-lock.yaml
 pnpm-workspace.yaml
+
+# User source, model/round receipts and install output remain local.
+*.log
+coverage/

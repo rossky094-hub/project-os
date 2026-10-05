@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync, renameSync, existsSync, openSync, closeSync, fsyncSync, unlinkSync, readdirSync, realpathSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync, renameSync, existsSync, openSync, closeSync, fsyncSync, unlinkSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { hash, safeId, schemaVersion, WorkflowError, type Session } from './types.js';
@@ -26,6 +26,16 @@ export class SessionStore {
     const temp = `${path}.${randomUUID()}.tmp`; const fd = openSync(temp,'wx',0o600);
     try { writeFileSync(fd,JSON.stringify(value,null,2)); fsyncSync(fd); } finally { closeSync(fd); }
     renameSync(temp,path); const dirFd = openSync(resolve(path,'..'),'r'); try { fsyncSync(dirFd); } finally { closeSync(dirFd); }
+  }
+  // Only observer selection is reused. Actual reads still validate the full
+  // immutable object; metadata changes invalidate even an unchanged pointer.
+  observationRevision(id: string): string {
+    const dir=this.dir(id),pointer=join(dir,'current.json');if(!existsSync(pointer))return 'absent';
+    try {
+      const ref=JSON.parse(readFileSync(pointer,'utf8'));if(!/^[a-f0-9]{64}$/.test(ref.hash))throw new Error('pointer hash');
+      const file=statSync(join(dir,`${ref.hash}.json`),{bigint:true});
+      return `${ref.hash}:${file.dev}:${file.ino}:${file.size}:${file.mtimeNs}:${file.ctimeNs}`;
+    } catch(e) { throw new WorkflowError('PERSISTENCE_FAILED',`状态损坏；保留原文件和不可变历史，请检查 ${dir}`,500,String(e)); }
   }
   load(id: string): Session|null {
     const dir = this.dir(id), pointer = join(dir,'current.json'); if (!existsSync(pointer)) return null;

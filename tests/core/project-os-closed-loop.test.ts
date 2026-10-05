@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { HumanGoalService } from '../../src/core/human-goal-workflow/service.js';
 import { hash, type AnalysisInput, type Analysis, type Scenario, type Analyzer } from '../../src/core/human-goal-workflow/types.js';
-import { activeConfirmation, projectClosedLoop } from '../../src/core/human-goal-workflow/scenarios.js';
+import { activeConfirmation, projectClosedLoop, reviewChangedMeanings } from '../../src/core/human-goal-workflow/scenarios.js';
 import { runVerification, verificationContext } from '../../src/core/human-goal-workflow/verification.js';
 const roots:string[]=[],services:HumanGoalService[]=[];
 afterEach(async()=>{for(const s of services.splice(0))await s.close();for(const r of roots.splice(0))rmSync(r,{recursive:true,force:true});});
@@ -113,4 +113,97 @@ it('observed trace from a failed check retains failure context and cannot pass a
  const {s,source,root}=await fixture();confirm(s);enroll(s,source);const state=s.read('self'),view=state.views[state.currentView!];view.analysis.edges.push({id:'call',from:'reader',to:'reader',label:'candidate',expected:'call',actual:'source only',kind:'call',certainty:'source-supported',refs:view.analysis.modules[0].refs});s.store.save(state);
  registerCheck(s,assertion('behavior-failed')+"console.log('PROJECT_OS_TRACE '+JSON.stringify({id:'trace',from:'reader',to:'reader',edgeId:'call',traceId:'failed-call',event:'enter',evidence:'Actual entry before failure'}));process.exitCode=1;");importReceipt(s,root,await runVerification(s.config,s.project('self'),s.verificationContext('self','round'),['check']));
  expect(s.closedLoop('self').runtimeCalls[0]).toMatchObject({checkId:'check',exitCode:1,assertionStatuses:['behavior-failed'],edgePassed:false});
+});
+
+it('editing a confirmed condition meaning invalidates its inherited mapping without discarding reference candidates',async()=>{
+ const {s}=await fixture();confirm(s);const state=s.read('self'),confirmed=activeConfirmation(state)!,draft=structuredClone(confirmed.scenarios);
+ draft[0].criteria[0].text='A different user-visible outcome';
+ s.reviewScenarios('self',{expectedGeneration:state.generation,idempotencyKey:'change-meaning',proposalId:confirmed.id,decision:'confirm',author:'fixture owner',roundId:null,scenarios:draft,analyze:false});
+ const saved=activeConfirmation(s.read('self'))!.scenarios[0].criteria[0];
+ expect(saved.mapping).toBe('unknown');expect(saved.uncertainty).toContain('含义');expect(saved.targetIds).toEqual(confirmed.scenarios[0].criteria[0].targetIds);
+ expect(activeConfirmation(s.read('self'))!.scenarios[0].criteria[0].text).toBe('A different user-visible outcome');
+ expect(s.read('self').scenarioSets!.find(x=>x.id===confirmed.id)).toEqual(confirmed);
+});
+
+it('meaning changes invalidate only affected mappings and retain immutable reference candidates',()=>{
+ const original=structuredClone(scenario);original.mapping='mapped';original.criteria[0].mapping='mapped';original.criteria.push({...original.criteria[0],id:'other'});
+ const draft=structuredClone(original);draft.criteria[0].observable='Observe a new outcome';
+ const reviewed=reviewChangedMeanings([original],[draft]);
+ expect(reviewed[0].mapping).toBe('mapped');expect(reviewed[0].criteria[0].mapping).toBe('unknown');expect(reviewed[0].criteria[1].mapping).toBe('mapped');
+ expect(reviewed[0].criteria[0].targetIds).toEqual(original.criteria[0].targetIds);expect(original.criteria[0].mapping).toBe('mapped');expect(draft.criteria[0].mapping).toBe('mapped');
+ draft.then='A different scenario outcome';const changed=reviewChangedMeanings([original],[draft]);
+ expect(changed[0].mapping).toBe('unknown');expect(changed[0].criteria.every(c=>c.mapping==='unknown')).toBe(true);
+ expect(reviewChangedMeanings([original],[original])).toEqual([original]);
+});
+
+it('verification shares the service identity when an explicit reading allowance is enabled',async()=>{
+ const {s,source}=await fixture();confirm(s);enroll(s,source);
+ s.config.projects[0].sourceReadPolicy={maxBytes:1048576};registerCheck(s,assertion('passed'));
+ const context=s.verificationContext('self','round');
+ const result=await runVerification(s.config,s.project('self'),context,['check']);
+ expect(result.checks[0].assertions[0].status).toBe('passed');expect(validateReceipt(result,s.read('self'),s.project('self'),s.config)).toEqual(result);
+ await expect(runVerification(s.config,{...s.project('self'),subjectId:'another-subject'},context,['check'])).rejects.toThrow('执行前来源或登记已改变');
+});
+
+import { projectMainlineProgress } from '../../src/core/human-goal-workflow/mainline-progress.js';
+function continuityModel(i:AnalysisInput):Analysis {
+ const a=model(i),ref=a.modules[0].refs[0];
+ a.workflow={status:'established',summary:'Read retained goal',coverage:'registered-scope',unknowns:[],journeys:[{id:'journey-read',title:'Read goal',purpose:'See the saved goal',clauseIds:['c1'],observed:{steps:[{id:'step-read',title:'Read state',purpose:'Retain the goal',actor:'user',responsibility:'Read current goal',inputs:['saved goal'],outputs:['goal text'],actual:'Stored goal can be read',state:'source-supported',targetIds:['reader'],clauseIds:['c1'],refs:[ref],uncertainty:'Needs a real condition check'}],links:[]},desired:{steps:[],links:[]}}]};
+ for(const item of [a.scenarios![0],...a.scenarios![0].criteria]){item.mapping='mapped';item.journeyIds=['journey-read'];item.uncertainty='Mapped to the source-supported read step';}
+ return a;
+}
+it('new evidence and presentation wording do not invalidate an unchanged functional contract',async()=>{
+ let updated=false;const {s,source}=await fixture({revision:'evidence-continuity',async analyze(i){const a=continuityModel(i);a.alignments=[{id:'contract-alignment',clauseIds:['c1'],targetIds:['reader'],status:'implemented-unverified',rationale:updated?'A new scoped receipt was inspected':'Static source supports the read operation',refs:a.modules[0].refs}];if(updated){a.workflow!.journeys[0].title='Read the saved goal';a.workflow!.journeys[0].observed.steps[0].actual='The saved goal was independently read';a.workflow!.journeys[0].observed.steps[0].uncertainty='User understanding still needs observation';}return a;}});
+ const state=s.read('self'),proposal=state.scenarioSets!.at(-1)!;updated=true;
+ s.reviewScenarios('self',{expectedGeneration:state.generation,idempotencyKey:'evidence-review',proposalId:proposal.id,decision:'confirm',author:'owner',roundId:null,scenarios:proposal.scenarios});await s.idle();
+ expect(s.read('self').attempts.at(-1)!.promoted).toBe(true);expect(s.closedLoop('self').confirmationMapping.status).toBe('unchanged-mapping');enroll(s,source);expect(()=>s.verificationContext('self','round')).not.toThrow();
+});
+it('default confirmation and receipt reanalysis preserve unchanged mappings and scoped proof across reopen',async()=>{
+ const {s,source,root}=await fixture({revision:'continuity-fixture',async analyze(i){return continuityModel(i);}});
+ const initial=s.read('self'),proposal=initial.scenarioSets!.at(-1)!;
+ s.reviewScenarios('self',{expectedGeneration:initial.generation,idempotencyKey:'default-confirm',proposalId:proposal.id,decision:'confirm',author:'owner',roundId:null,scenarios:proposal.scenarios});await s.idle();
+ let state=s.read('self');const confirmation=structuredClone(activeConfirmation(state)!);
+ expect(state.views[state.currentView!].attemptId).not.toBe(confirmation.analysisAttemptId);
+ enroll(s,source);const after=s.rounds.checkpoint('self','registration');
+ for(const [sequence,kind] of [[1,'begin'],[2,'completed']] as const)s.rounds.accept('self',{key:`continuity-event-${sequence}`,projectId:'self',registrationId:'registration',roundId:'round',attemptId:'attempt',producerId:'producer',sequence,dependsOn:[],kind,description:sequence===1?'turn-start':'turn-completed',rawHash:hash([sequence,kind]),observedAt:new Date().toISOString(),sourceSnapshotId:sequence===2?after.id:null});
+ state=s.read('self');const view=state.views[state.currentView!];
+ s.annotateMainline('self',{expectedRevision:0,idempotencyKey:'continuity-intent',roundId:'round',goalHash:state.goals.at(-1)!.hash,viewAttemptId:view.attemptId,sourceHash:view.source.hash,journeyId:'journey-read',stepIds:['step-read'],kind:'direct-product',reason:'Verify retained goal',expectedVerification:'Read the actual stored goal',previousId:null,author:'owner'});
+ const annotations=structuredClone(s.read('self').mainlineAnnotations);
+ registerCheck(s,`const fs=require('fs'),p=${JSON.stringify(join(s.config.dataDir,'sessions','self'))};const ref=JSON.parse(fs.readFileSync(p+'/current.json','utf8'));const state=JSON.parse(fs.readFileSync(p+'/'+ref.hash+'.json','utf8'));console.log('PROJECT_OS_ASSERTION '+JSON.stringify({assertionId:'retained',status:state.goals.at(-1).originalText==='Retain goal'?'passed':'behavior-failed',actual:state.goals.at(-1).originalText,evidence:'Read the real immutable session object'}));`);
+ const receipt=await runVerification(s.config,s.project('self'),s.verificationContext('self','round'),['check']);
+ const file=join(root,'evidence','continuity-receipt.json');writeFileSync(file,JSON.stringify(receipt));
+ s.importVerification('self',{expectedGeneration:s.read('self').generation,idempotencyKey:'continuity-import',record:{rootIndex:0,path:'continuity-receipt.json',sha256:digest(readFileSync(file))}});await s.idle();
+ state=s.read('self');let p=projectMainlineProgress(state,view.source.hash);
+ expect(activeConfirmation(state)).toEqual(confirmation);expect(state.mainlineAnnotations).toEqual(annotations);
+ expect(p.rounds[0].mapping).toMatchObject({state:'confirmed',continuity:'unchanged-mapping'});
+ expect(p.rounds[0].status).toBe('verified-scoped');expect(p.rounds[0].comparison.criteria[0].after.status).toBe('passed');
+ await s.close();services.splice(services.indexOf(s),1);const reopened=new HumanGoalService(s.config,{revision:'continuity-fixture',async analyze(){throw Error('Reopen must not run provider');}});services.push(reopened);
+ p=projectMainlineProgress(reopened.read('self'),view.source.hash);expect(p.rounds[0].status).toBe('verified-scoped');expect(activeConfirmation(reopened.read('self'))).toEqual(confirmation);
+});
+it('conflict explanation changes preserve confirmation while the opposing requirements stay unchanged',async()=>{
+ let changed=false;const {s}=await fixture({revision:'conflict-explanation-fixture',async analyze(i){const a=continuityModel(i);a.conflicts=[{targetId:'reader',clauseIds:['c1'],parentText:'Retain goal',moduleText:'Read goal',reason:changed?'New evidence explains the same disagreement':'Initial explanation'}];return a;}});
+ const state=s.read('self'),proposal=state.scenarioSets!.at(-1)!;changed=true;
+ s.reviewScenarios('self',{expectedGeneration:state.generation,idempotencyKey:'conflict-explanation',proposalId:proposal.id,decision:'confirm',author:'owner',roundId:null,scenarios:proposal.scenarios});await s.idle();
+ expect(s.read('self').attempts.at(-1)!.promoted).toBe(true);expect(s.closedLoop('self').confirmationMapping.status).toBe('unchanged-mapping');
+});
+it.each(['parentText','moduleText','targetId','clauseIds','addition','removal'])('conflict %s changes require review despite stable module IDs',async field=>{
+ let changed=false;const {s}=await fixture({revision:'conflict-contract-fixture',async analyze(i){const a=continuityModel(i);a.modules.push({...structuredClone(a.modules[0]),id:'reader-two'});const conflict={targetId:'reader',clauseIds:['c1'],parentText:'Retain goal',moduleText:'Read goal',reason:'Explanation'};a.conflicts=field==='addition'&&!changed||field==='removal'&&changed?[]:[conflict];if(changed){if(field==='parentText')conflict.parentText='Delete goal';if(field==='moduleText')conflict.moduleText='Replace goal';if(field==='targetId')conflict.targetId='reader-two';if(field==='clauseIds')conflict.clauseIds=[];}return a;}});
+ const state=s.read('self'),proposal=state.scenarioSets!.at(-1)!;changed=true;
+ s.reviewScenarios('self',{expectedGeneration:state.generation,idempotencyKey:`conflict-${field}`,proposalId:proposal.id,decision:'confirm',author:'owner',roundId:null,scenarios:proposal.scenarios});await s.idle();
+ expect(s.read('self').attempts.at(-1)!.promoted).toBe(true);expect(s.closedLoop('self').confirmationMapping.status).toBe('needs-review');
+});
+it.each(['module','journey'])('same IDs cannot inherit confirmation after %s meaning changes in default reanalysis',async changed=>{
+ let change=false;const {s}=await fixture({revision:'changed-mapping-fixture',async analyze(i){const a=continuityModel(i);if(change){if(changed==='module')a.modules[0].responsibility='Delete the saved goal';else a.workflow!.journeys[0].observed.steps[0].outputs=['deleted goal'];}return a;}});
+ const state=s.read('self'),proposal=state.scenarioSets!.at(-1)!;change=true;
+ s.reviewScenarios('self',{expectedGeneration:state.generation,idempotencyKey:`changed-${changed}`,proposalId:proposal.id,decision:'confirm',author:'owner',roundId:null,scenarios:proposal.scenarios});await s.idle();
+ const loop=s.closedLoop('self') as any;expect(loop.confirmationMapping.status).toBe('needs-review');expect(loop.status).not.toBe('verified');
+ expect(loop.nextAction).toContain('重新核对');
+});
+it('mapping changed and restored across real analyses does not resurrect an old confirmation',async()=>{
+ let changed=false;const {s}=await fixture({revision:'restored-mapping-fixture',async analyze(i){const a=continuityModel(i);if(changed)a.workflow!.journeys[0].observed.steps[0].outputs=['different user result'];return a;}});
+ const state=s.read('self'),proposal=state.scenarioSets!.at(-1)!;changed=true;
+ s.reviewScenarios('self',{expectedGeneration:state.generation,idempotencyKey:'intermediate-change',proposalId:proposal.id,decision:'confirm',author:'owner',roundId:null,scenarios:proposal.scenarios});await s.idle();
+ changed=false;s.analyze('self',{expectedGeneration:s.read('self').generation,idempotencyKey:'restore-original-mapping'});await s.idle();
+ const fresh=s.read('self');expect(fresh.views[fresh.currentView!].analysis.workflow).toEqual(state.views[0].analysis.workflow);
+ expect(s.closedLoop('self').confirmationMapping.status).toBe('needs-review');expect(fresh.scenarioSets!.filter(x=>x.status==='confirmed')).toHaveLength(1);
 });

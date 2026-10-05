@@ -5,7 +5,7 @@ import { CODEX_INPUT_MAX_CHARS, makePrompt, projectInputTransport, reconstructIn
 import type { AnalysisInput } from '../../src/core/human-goal-workflow/types.js';
 
 const sha = (value: string) => createHash('sha256').update(value).digest('hex');
-const actualPreflight = process.env.PROJECT_OS_ANALYSIS_INPUT_PREFLIGHT ?? 'tests/fixtures/optional-analysis-input-transport-preflight.json';
+const actualPreflight = process.env.PROJECT_OS_ANALYSIS_INPUT_PREFLIGHT || 'tests/fixtures/analysis-input-preflight.json';
 
 function fixture(): AnalysisInput {
   const coverage = Array.from({length: 15}, (_, i) => `registered/path/${i}/${'long-name-'.repeat(6)}.ts`);

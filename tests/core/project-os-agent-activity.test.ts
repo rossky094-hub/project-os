@@ -166,3 +166,14 @@ it('bounds synchronous poll work, coalesces ignored lines, and leaves idle state
  const count=readdirSync(dir).length,stateHash=hash(service.read('self'));service.activity.poll('self','connection');
  expect(readdirSync(dir)).toHaveLength(count);expect(hash(service.read('self'))).toBe(stateHash);
 });
+
+it('idle observer with no selected connections avoids rereading the whole history',()=>{
+ service.activity.pollAll();const load=vi.spyOn(service.store,'load');service.activity.pollAll();service.activity.pollAll();expect(load).not.toHaveBeenCalled();
+ connect();appendFileSync(join(evidence,'selected.jsonl'),line(nativeMeta())+line(nativeStart('new-turn'))+line(nativeContext('new-turn')));service.activity.pollAll();
+ expect(projectActivity(service.read('self')).turns).toHaveLength(1);
+});
+it('stopped connection stays stopped during idle polls and supported replay invalidates the index',()=>{
+ connect('codex-exec-jsonl');writeFileSync(join(evidence,'selected.jsonl'),'invalid\n');expect(service.activity.poll('self','connection').status).toBe('sync-error');service.activity.pollAll();
+ const load=vi.spyOn(service.store,'load');service.activity.pollAll();service.activity.pollAll();expect(load).not.toHaveBeenCalled();
+ writeFileSync(join(evidence,'selected.jsonl'),line({type:'turn.started'}));service.activity.replay('self','connection');service.activity.pollAll();expect(projectActivity(service.read('self')).turns).toHaveLength(1);
+});

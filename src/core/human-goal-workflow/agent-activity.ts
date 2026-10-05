@@ -21,6 +21,7 @@ export interface ActivityConnection extends ActivityConnectionRequest {
  status:ActivityStatus;issue:string|null;lastReceivedAt:string|null;lastCheckedAt:string|null;
  currentTurnId:string|null;currentRoundId:string|null;roundSequence:number;threadId:string|null;
  metadataVerified?:boolean;
+ recoveryRead?:{fromOffset:number;throughOffset:number|null};
  baselineSnapshotId:string;ignoredCount:number;history:{kind:'error'|'replay'|'recovered';at:string;issue:string|null;offset:number;cursor:number}[];
 }
 export type ActivityKind='session'|'turn-start'|'turn-complete'|'turn-failed'|'turn-cancelled'|'tool'|'delegation'|'agent-report'|'error';

@@ -1,20 +1,21 @@
-import { activeConfirmation, validateScenarios, projectClosedLoop } from './scenarios.js';
+import { activeConfirmation, validateScenarios, projectClosedLoop, reviewChangedMeanings } from './scenarios.js';
 import { verificationContext, validateReceipt } from './verification.js';
 import { readFileSync, lstatSync, realpathSync, mkdirSync, writeFileSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { RoundCoordinator, recordRef, evidenceFile, analysisRoundContext, eligibleRoundTriggers } from './rounds.js';
+import { RoundCoordinator, recordRef, evidenceFile, currentAnalysisRoundContext, eligibleRoundTriggers } from './rounds.js';
 import { CodexEventFollower } from './codex-events.js';
 import { CodexSessionObserver } from './codex-session.js';
 import { appendMainlineAnnotation } from './mainline-progress.js';
 import { SessionStore } from './store.js';
 import { contained, discoverSource, safePath } from './source.js';
 import { CodexAnalyzer, validateAnalysis } from './analyzer.js';
-import { scenarioListSchema, clauseSchema, configSchema, safeId, text, hash, digest, schemaVersion, WorkflowError, type Config, type Project, type Session, type Analyzer, type AnalysisInput, type Attempt, type GapView, type View, type Observation } from './types.js';
+import { scenarioListSchema, clauseSchema, configSchema, safeId, text, hash, projectRegistryHash, digest, schemaVersion, WorkflowError, type Config, type Project, type Session, type Analyzer, type AnalysisInput, type Attempt, type GapView, type View, type Observation } from './types.js';
 const now = () => new Date().toISOString();
 const expectationSchema = z.object({targetId:safeId,responsibility:text,inputs:z.array(text).max(30),outputs:z.array(text).max(30),examples:z.array(text).max(30),clauseIds:z.array(safeId).min(1).max(50),disposition:z.enum(['required','optional','unnecessary','proposed-missing']),replaces:z.array(safeId).max(30)}).strict();
-export const feedbackSchema = z.object({expectedGeneration:z.number().int().nonnegative(),idempotencyKey:safeId,originalText:text,kind:z.enum(['interpretation-correction','desired-change','evidence-contribution']),targetIds:z.array(safeId).max(50).default([]),author:text,provenance:text,clauses:z.array(clauseSchema).min(1).max(50).optional(),expectation:expectationSchema.optional(),supersedes:safeId.optional(),analyze:z.boolean().default(true)}).strict();
+const goalReviewSchema = z.object({clauseId:safeId,goalHash:z.string().regex(/^[a-f0-9]{64}$/),sourceHash:z.string().regex(/^[a-f0-9]{64}$/),analysisAttemptId:safeId,decision:z.enum(['matches','mismatch','unknown']),nextObservation:text}).strict();
+export const feedbackSchema = z.object({expectedGeneration:z.number().int().nonnegative(),idempotencyKey:safeId,originalText:text,kind:z.enum(['interpretation-correction','desired-change','evidence-contribution']),targetIds:z.array(safeId).max(50).default([]),author:text,provenance:text,clauses:z.array(clauseSchema).min(1).max(50).optional(),expectation:expectationSchema.optional(),goalReview:goalReviewSchema.optional(),supersedes:safeId.optional(),analyze:z.boolean().default(true)}).strict();
 const analyzeSchema = z.object({expectedGeneration:z.number().int().nonnegative(),idempotencyKey:safeId}).strict();
 const rawCriterionProvenance = '自动完整原文核对项：逐字保留目标原文；未作语义拆解，未经人类逐条确认。';
 // A provenance marker identifies the automatic criterion without reassigning human clause IDs.
@@ -29,19 +30,25 @@ export class HumanGoalService {
     if (contained(repo,data)) throw new WorkflowError('DATA_SCOPE_REFUSED','数据目录必须在 Project OS 仓库之外');
     for(const [id,checks] of Object.entries(this.config.verificationChecks)){if(!this.config.projects.some(p=>p.id===id)||new Set(checks.map(c=>c.id)).size!==checks.length)throw new WorkflowError('CHECK_REGISTRY','检查登记项目未知或 ID 重复');}
     this.store=new SessionStore(data);
-    this.rounds=new RoundCoordinator(this.store,id=>this.read(id),id=>this.project(id),id=>this.reconcileRoundAnalysis(id));this.follower=new CodexEventFollower(this.rounds,id=>this.read(id),id=>this.project(id),()=>this.config.projects.map(p=>p.id),this.config.eventReadPolicy);
+    this.rounds=new RoundCoordinator(this.store,id=>this.read(id),id=>this.project(id),id=>this.reconcileRoundAnalysis(id));this.follower=new CodexEventFollower(this.rounds,id=>this.read(id),id=>this.project(id),()=>this.config.projects.map(p=>p.id),this.config.eventReadPolicy,id=>this.store.observationRevision(id));
     this.activity=new CodexSessionObserver(this.store,this.rounds,id=>this.read(id),id=>this.project(id),()=>this.config.projects.map(p=>p.id),this.config.eventReadPolicy.maxRecordBytes);
     try { for (const id of this.store.list()) this.store.interruptActive(id); } catch(e) { this.store.close(); throw e; }
     for(const id of this.store.list())this.reconcileRoundAnalysis(id);
   }
   project(id:string): Project { const p=this.config.projects.find(p=>p.id===id); if(!p)throw new WorkflowError('PROJECT_UNKNOWN','只允许已登记项目',404);return p; }
-  read(id:string): Session { const p=this.project(id); const state=this.store.load(id); if(state){if(state.registryHash!==hash(p))throw new WorkflowError('IDENTITY_UNRESOLVED','项目登记身份已改变，不能覆盖现有会话',409);return state;} return {schemaVersion,projectId:id,registryHash:hash(p),generation:0,goals:[],feedback:[],expectations:[],observations:[],attempts:[],views:[],currentView:null,conflicts:[],idempotency:{},actions:[]}; }
+  read(id:string): Session { const p=this.project(id); const registryHash=projectRegistryHash(p); const state=this.store.load(id); if(state){if(state.registryHash!==registryHash)throw new WorkflowError('IDENTITY_UNRESOLVED','项目登记身份已改变，不能覆盖现有会话',409);return state;} return {schemaVersion,projectId:id,registryHash,generation:0,goals:[],feedback:[],expectations:[],observations:[],attempts:[],views:[],currentView:null,conflicts:[],idempotency:{},actions:[]}; }
   private cas(state:Session,generation:number,request:unknown) { if(state.generation!==generation) { state.conflicts.push({request,reason:'STALE_BASE',createdAt:now()});this.store.save(state);throw new WorkflowError('STALE_BASE','另一操作已更新状态；原文已保留，读取新版本后显式合并',409,{retainedGeneration:state.generation,request}); } }
   private replay(state:Session,key:string,payload:unknown): unknown { const previous=state.idempotency[key];if(!previous)return undefined;if(previous.payloadHash!==hash(payload))throw new WorkflowError('IDEMPOTENCY_CONFLICT','同一个请求键不能用于不同内容',409);return previous.result; }
   private remember(state:Session,key:string,payload:unknown,result:unknown){state.idempotency[key]={payloadHash:hash(payload),result};this.store.save(state);return result;}
   feedback(id:string,raw:unknown): unknown {
     const req=feedbackSchema.parse(raw), s=this.read(id), prior=this.replay(s,req.idempotencyKey,req);if(prior!==undefined)return prior;this.cas(s,req.expectedGeneration,req);
     const view=s.currentView===null?null:s.views[s.currentView], valid=new Set(view?.analysis.modules.map(m=>m.id)??[]);
+    if(req.goalReview){
+      const review=req.goalReview, goal=s.goals.at(-1);
+      if(!req.originalText.trim()||!review.nextObservation.trim())throw new WorkflowError('REVIEW_INCOMPLETE','请填写实际观察与下一验证方法，不能只提交判断');
+      if(req.kind!=='evidence-contribution'||req.expectation||req.clauses)throw new WorkflowError('GOAL_CONFLICT','目标核对记录不改写目标或模块期望；需要改变时另存修正');
+      if(!view||!goal||review.goalHash!==goal.hash||view.goal?.hash!==goal.hash||review.sourceHash!==view.source.hash||review.analysisAttemptId!==view.attemptId||!goal.clauses.some(c=>c.id===review.clauseId)||discoverSource(this.project(id)).hash!==review.sourceHash)throw new WorkflowError('STALE_REVIEW','目标、来源或分析已变化，请刷新核对页；旧核对不能作为当前判断',409);
+    }
     for(const target of req.targetIds) if(!valid.has(target)&&req.expectation?.disposition!=='proposed-missing')throw new WorkflowError('REFERENCE_UNRESOLVED','反馈目标不存在');
     if(req.supersedes&&!s.feedback.some(f=>f.id===req.supersedes))throw new WorkflowError('REFERENCE_UNRESOLVED','被纠正分类的反馈不存在');
     if(req.expectation&&req.kind!=='desired-change')throw new WorkflowError('GOAL_CONFLICT','解释纠正不会改写模块期望；请分开提交期望改变');
@@ -73,20 +80,20 @@ export class HumanGoalService {
     }
     if(req.expectation){const clauses=s.goals.at(-1)?.clauses??[];if(req.expectation.clauseIds.some(id=>!clauses.some(c=>c.id===id)))throw new WorkflowError('GOAL_CONFLICT','模块期望必须指向现有父目标条款');for(const old of req.expectation.replaces)if(!valid.has(old))throw new WorkflowError('REFERENCE_UNRESOLVED','拆并原节点不存在');s.expectations=s.expectations.filter(e=>e.targetId!==req.expectation!.targetId);s.expectations.push(req.expectation);}
     const feedbackId=`feedback-${randomUUID()}`;
-    s.feedback.push({id:feedbackId,originalText:req.originalText,kind:req.kind,targetIds:req.targetIds,author:req.author,provenance:req.provenance,createdAt:now(),goalVersion:s.goals.at(-1)?.version??null,classification:'confirmed',...(req.supersedes?{supersedes:req.supersedes}:{}),...(req.expectation?{expectation:req.expectation}:{})});s.generation++;
+    s.feedback.push({id:feedbackId,originalText:req.originalText,kind:req.kind,targetIds:req.targetIds,author:req.author,provenance:req.provenance,createdAt:now(),goalVersion:s.goals.at(-1)?.version??null,classification:'confirmed',...(req.supersedes?{supersedes:req.supersedes}:{}),...(req.expectation?{expectation:req.expectation}:{}),...(req.goalReview?{goalReview:req.goalReview}:{})});s.generation++;
     const result={feedbackId,generation:s.generation,analysisRequired:true};this.remember(s,req.idempotencyKey,req,result);
     if(req.analyze) { try { const job=this.analyze(id,{expectedGeneration:s.generation,idempotencyKey:`analysis-${feedbackId}`});const response={...result,job};const current=this.read(id);this.remember(current,req.idempotencyKey,req,response);return response; } catch(e) { const response={...result,analysisError:String(e)};const current=this.read(id);this.remember(current,req.idempotencyKey,req,response);return response; } } return result;
   }
   private input(s:Session,source=discoverSource(this.project(s.projectId))): AnalysisInput {
     const previous=s.currentView===null?null:s.views[s.currentView];
     const {receipts,...closedLoop}=projectClosedLoop(s,source.hash,s.currentView!==null&&this.viewIsCurrent(s,s.views[s.currentView]));
-    const base={scenarioSet:activeConfirmation(s),closedLoop,...(s.rounds?{rounds:analysisRoundContext(s,this.config.roundPolicy)}:{}),schemaVersion,project:this.project(s.projectId),source,goal:s.goals.at(-1)??null,expectations:s.expectations,feedback:s.feedback,observations:s.observations.map(o=>({...o,scopeSummary:o.scopeSummary??null,limitations:o.limitations??null,rawRecord:`local original SHA256 ${o.rawHash}`,invocation:{kind:'local-evidence-reference',rawHash:o.rawHash}})),previous:previous?.analysis??null,previousSourceHash:previous?.source.hash??null,generation:s.generation,analyzerRevision:this.analyzer.revision,configHash:hash(this.config.analyzer),plan:{reason:s.feedback.at(-1)?.targetIds.length?'模块反馈：重新读取来源及依赖；影响闭包未知，扩大到已登记范围':'初读或整体目标变化：重新检查全部条款与来源',targetIds:s.feedback.at(-1)?.targetIds??[],sourcePaths:source.files.map(f=>f.path),reuse:s.observations.filter(o=>o.sourceHash===source.hash).map(o=>o.id),limitations:['仅静态来源理解；未执行 subject','只对已登记范围形成判断；缺行不是缺失实现',...(source.readGaps??[]).map(g=>`未读 ${g.path}:${g.start}-${g.end}（${g.reason}）`),...source.omitted.map(g=>`未提供 ${g.path}（${g.reason}）`)]}};
+    const base={verificationChecks:this.config.verificationChecks[s.projectId]??[],scenarioSet:activeConfirmation(s),closedLoop,...(s.rounds?{rounds:currentAnalysisRoundContext(s,this.config.roundPolicy)}:{}),schemaVersion,project:this.project(s.projectId),source,goal:s.goals.at(-1)??null,expectations:s.expectations,feedback:s.feedback,observations:s.observations.map(o=>({...o,scopeSummary:o.scopeSummary??null,limitations:o.limitations??null,rawRecord:`local original SHA256 ${o.rawHash}`,invocation:{kind:'local-evidence-reference',rawHash:o.rawHash}})),previous:previous?.analysis??null,previousSourceHash:previous?.source.hash??null,generation:s.generation,analyzerRevision:this.analyzer.revision,configHash:hash(this.config.analyzer),plan:{reason:s.feedback.at(-1)?.targetIds.length?'模块反馈：重新读取来源及依赖；影响闭包未知，扩大到已登记范围':'初读或整体目标变化：重新检查全部条款与来源',targetIds:s.feedback.at(-1)?.targetIds??[],sourcePaths:source.files.map(f=>f.path),reuse:s.observations.filter(o=>o.sourceHash===source.hash).map(o=>o.id),limitations:['仅静态来源理解；未执行 subject','只对已登记范围形成判断；缺行不是缺失实现',...(source.readGaps??[]).map(g=>`未读 ${g.path}:${g.start}-${g.end}（${g.reason}）`),...source.omitted.map(g=>`未提供 ${g.path}（${g.reason}）`)]}};
     return {...base,snapshotCountAtRead:s.rounds?.snapshots.length??0,materialHash:this.materialHash(s,source),inputHash:hash({...base,source:{...source,observedAt:undefined}})};
   }
   private materialHash(s:Session,source:AnalysisInput['source']):string {
     return hash({project:this.project(s.projectId),source:{...source,observedAt:undefined},goal:s.goals.at(-1)??null,
-      scenarioSet:activeConfirmation(s),verificationReceipts:s.verificationReceipts??[],feedback:s.feedback,expectations:s.expectations,observations:s.observations,
-      rounds:analysisRoundContext(s,this.config.roundPolicy),
+      verificationChecks:this.config.verificationChecks[s.projectId]??[],scenarioSet:activeConfirmation(s),verificationReceipts:s.verificationReceipts??[],feedback:s.feedback,expectations:s.expectations,observations:s.observations,
+      rounds:currentAnalysisRoundContext(s,this.config.roundPolicy),
       analyzerRevision:this.analyzer.revision,configHash:hash(this.config.analyzer)});
   }
   viewIsCurrent(s:Session,view:View):boolean {
@@ -186,12 +193,25 @@ export class HumanGoalService {
       const result=validateAnalysis(raw,original.input);
       s=this.read(id);const a=s.attempts.find(a=>a.id===aid)!;a.result=result;a.state=original.input.source.partial?'partial':'completed';a.endedAt=now();a.usedMs+=Date.now()-started;
       if(controller.signal.aborted){a.state='interrupted';a.error='请求已取消；结果仅作历史保留';}
-      else if(a.input.materialHash ? this.materialHash(s,discoverSource(this.project(id)))===a.input.materialHash : s.generation===a.input.generation && this.input(s).inputHash===a.input.inputHash){s.generation++;const view=projectView(a,s);s.views.push(view);s.currentView=s.views.length-1;a.promoted=true;if(result.scenarios?.length&&a.input.goal){const base={id:`scenarios-${randomUUID()}`,goalHash:a.input.goal.hash,goalVersion:a.input.goal.version,sourceHash:a.input.source.hash,analysisAttemptId:aid,scenarios:result.scenarios,status:'proposed' as const,author:'model',createdAt:now(),roundId:null};(s.scenarioSets??=[]).push({...base,hash:hash(base)});}}
+      else if(a.input.materialHash ? this.materialHash(s,discoverSource(this.project(id)))===a.input.materialHash : s.generation===a.input.generation && this.input(s).inputHash===a.input.inputHash){s.generation++;const view=projectView(a,s),previous=s.currentView===null?null:s.views[s.currentView];if(previous&&previous.source.hash===view.source.hash&&previous.goal?.hash===view.goal?.hash&&view.goal&&!previous.source.partial&&!view.source.partial)(s.analysisContinuations??=[]).push({fromAttemptId:previous.attemptId,toAttemptId:view.attemptId,sourceHash:view.source.hash,goalHash:view.goal.hash,fromAnalysisHash:hash(previous.analysis),toAnalysisHash:hash(view.analysis),createdAt:now()});s.views.push(view);s.currentView=s.views.length-1;a.promoted=true;if(result.scenarios?.length&&a.input.goal){const base={id:`scenarios-${randomUUID()}`,goalHash:a.input.goal.hash,goalVersion:a.input.goal.version,sourceHash:a.input.source.hash,analysisAttemptId:aid,scenarios:result.scenarios,status:'proposed' as const,author:'model',createdAt:now(),roundId:null};(s.scenarioSets??=[]).push({...base,hash:hash(base)});}}
       else a.error='STALE_RESULT：旧结果只进入历史，未覆盖当前目标';this.store.save(s);
     } catch(e) {s=this.read(id);const a=s.attempts.find(a=>a.id===aid)!;a.state=controller.signal.aborted?'interrupted':'failed';a.error=e instanceof WorkflowError?`${e.code}: ${e.message}`:String(e);a.endedAt=now();a.usedMs+=Date.now()-started;this.store.save(s);}finally{this.controllers.delete(aid);this.finishRoundAnalysis(id,aid);}
   }
   cancel(id:string,aid:string){const s=this.read(id),pending=s.roundAnalysis?.jobs.find(j=>j.id===aid&&j.state==='pending');if(pending){pending.state='cancelled';pending.error='用户取消待分析请求';pending.endedAt=now();this.store.save(s);return {attemptId:aid};}const a=s.attempts.find(a=>a.id===aid);if(!a)throw new WorkflowError('REFERENCE_UNRESOLVED','任务不存在');if(a.state==='queued'){a.state='interrupted';a.error='用户取消排队任务';a.endedAt=now();this.store.save(s);this.finishRoundAnalysis(id,aid);}this.controllers.get(aid)?.abort();return {attemptId:aid};}
-  closedLoop(id:string){const s=this.read(id),source=discoverSource(this.project(id));return projectClosedLoop(s,source.hash,s.currentView!==null&&this.viewIsCurrent(s,s.views[s.currentView]));}
+  closedLoop(id:string){return this.closedLoopFromSession(this.read(id));}
+  observationRecord(id:string,raw:unknown,s=this.read(id)){
+    const req=z.object({observationId:safeId,rawHash:z.string().regex(/^[a-f0-9]{64}$/)}).strict().parse(raw);
+    if(s.projectId!==id)throw new WorkflowError('PROJECT_MISMATCH','观察不属于所选项目',409);
+    const observation=s.observations.find(o=>o.id===req.observationId);
+    if(!observation)throw new WorkflowError('OBSERVATION_MISSING','所选项目没有这项观察原件',404);
+    if(observation.rawHash!==req.rawHash||digest(observation.rawRecord)!==req.rawHash)
+      throw new WorkflowError('REVISION_MISMATCH','观察原件与所选身份不符',409);
+    return {observationId:observation.id,rawHash:observation.rawHash,rawRecord:observation.rawRecord,
+      invocation:observation.invocation,sourceHash:observation.sourceHash,goalHash:observation.goalHash,
+      roundIds:observation.roundIds??[],qualified:observation.qualified};
+  }
+  // Request-local reuse only: source is freshly discovered; no cross-request cache.
+  closedLoopFromSession(s:Session){const source=discoverSource(this.project(s.projectId));return projectClosedLoop(s,source.hash,s.currentView!==null&&this.viewIsCurrent(s,s.views[s.currentView]));}
   annotateMainline(id:string,raw:unknown){const s=this.read(id),source=discoverSource(this.project(id)),revision=s.mainlineAnnotations?.revision??0;const annotation=appendMainlineAnnotation(s,raw,source.hash);if(s.mainlineAnnotations!.revision!==revision)this.store.save(s);return {annotationId:annotation.id,revision:s.mainlineAnnotations!.revision};}
   verificationContext(id:string,roundId:string){return verificationContext(this.read(id),this.project(id),roundId);}
   reviewScenarios(id:string,raw:unknown):unknown {
@@ -199,9 +219,10 @@ export class HumanGoalService {
     const proposal=s.scenarioSets?.find(x=>x.id===req.proposalId),goal=s.goals.at(-1),view=s.currentView===null?null:s.views[s.currentView],source=discoverSource(this.project(id));
     if(!proposal||!['proposed','confirmed'].includes(proposal.status)||!goal||proposal.goalHash!==goal.hash||!view||view.goal?.hash!==goal.hash||view.source.hash!==source.hash||(proposal.status==='proposed'&&(proposal.analysisAttemptId!==view.attemptId||proposal.sourceHash!==source.hash))||(proposal.status==='confirmed'&&activeConfirmation(s)?.id!==proposal.id))throw new WorkflowError('STALE_PROPOSAL','场景提议已过期，请按当前目标与来源重分析',409);
     if(req.decision==='confirm'&&!req.scenarios.length)throw new WorkflowError('SCENARIO_REQUIRED','确认集不能为空');
-    validateScenarios(req.scenarios,view.analysis,goal);
+    const scenarios=reviewChangedMeanings(proposal.scenarios,req.scenarios);
+    validateScenarios(scenarios,view.analysis,goal);
     if(req.roundId&&!s.rounds?.registrations.some(r=>r.binding.roundId===req.roundId&&r.binding.goalHash===goal.hash))throw new WorkflowError('ROUND_REQUIRED','确认须关联当前目标的登记轮次');
-    const base={id:`scenarios-${randomUUID()}`,goalHash:goal.hash,goalVersion:goal.version,sourceHash:source.hash,analysisAttemptId:view.attemptId,scenarios:req.scenarios,status:req.decision==='confirm'?'confirmed' as const:'rejected' as const,proposalId:proposal.id,author:req.author,createdAt:now(),roundId:req.roundId};
+    const base={id:`scenarios-${randomUUID()}`,goalHash:goal.hash,goalVersion:goal.version,sourceHash:source.hash,analysisAttemptId:view.attemptId,scenarios,status:req.decision==='confirm'?'confirmed' as const:'rejected' as const,proposalId:proposal.id,author:req.author,createdAt:now(),roundId:req.roundId};
     (s.scenarioSets??=[]).push({...base,hash:hash(base)});s.generation++;const result={scenarioSetId:base.id,generation:s.generation,status:base.status};this.remember(s,req.idempotencyKey,req,result);
     if(req.analyze){try{const job=this.analyze(id,{expectedGeneration:s.generation,idempotencyKey:`analysis-${base.id}`});const response={...result,job};this.remember(this.read(id),req.idempotencyKey,req,response);return response;}catch(e){const response={...result,analysisError:String(e)};this.remember(this.read(id),req.idempotencyKey,req,response);return response;}}return result;
   }

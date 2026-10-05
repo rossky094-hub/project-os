@@ -46,6 +46,14 @@ it('whole and module feedback create new source reads and independent immutable 
  const {service,calls}=await fixture();try{service.feedback('synthetic',goal(0));await service.idle();let s=service.read('synthetic');expect(s.views).toHaveLength(1);expect(calls).toHaveLength(1);const oldGoal=JSON.stringify(s.goals[0]),oldView=JSON.stringify(s.views[0]);
  service.feedback('synthetic',{expectedGeneration:s.generation,idempotencyKey:'module-review',originalText:'This is interpretation correction; do not develop an extra feature',kind:'interpretation-correction',targetIds:['module-a'],author:'SYNTHETIC',provenance:'test'});await service.idle();s=service.read('synthetic');expect(calls).toHaveLength(2);expect(calls[1].previous).toEqual(calls[0]&&s.views[0].analysis);expect(calls[1].feedback.at(-1)?.originalText).toContain('do not develop');expect(calls[1].inputHash).not.toBe(calls[0].inputHash);expect(await readFile(join(s.attempts[1].rawDir,'source-read.json'),'utf8')).toContain('main.py');expect(JSON.stringify(s.goals[0])).toBe(oldGoal);expect(JSON.stringify(s.views[0])).toBe(oldView);expect(s.goals).toHaveLength(1);expect(makePrompt(calls[1])).toContain('不可信证据');}finally{await service.close();}
 });
+it('registered verification choices reach the model and changing them retires the old diagnosis',async()=>{
+ const {service,calls}=await fixture();try{
+  service.feedback('synthetic',goal(0));await service.idle();const state=service.read('synthetic'),view=state.views[state.currentView!];expect(service.viewIsCurrent(state,view)).toBe(true);
+  const check={id:'inspect',label:'Actual local check',argv:[process.execPath,'--version'],prerequisites:[],bindings:[{assertionId:'observed',scenarioId:'scenario',criterionId:'criterion'}]};service.config.verificationChecks.synthetic=[check];
+  expect(service.viewIsCurrent(service.read('synthetic'),view)).toBe(false);
+  service.analyze('synthetic',{expectedGeneration:state.generation,idempotencyKey:'check-registry-review'});await service.idle();expect(calls.at(-1)!.verificationChecks).toEqual([check]);
+ }finally{await service.close();}
+});
 it('idempotency protects payload, stale generation retains conflict text, and goal-only edits never overwrite analysis',async()=>{
  const {service}=await fixture();try{const req={...goal(0),analyze:false};const a=service.feedback('synthetic',req);expect(service.feedback('synthetic',req)).toEqual(a);expect(()=>service.feedback('synthetic',{...req,originalText:'different'})).toThrow('请求键');expect(()=>service.feedback('synthetic',{...goal(0,'stale original','c1','new-key'),analyze:false})).toThrow('原文已保留');const s=service.read('synthetic');expect(s.conflicts[0].request).toMatchObject({originalText:'stale original'});expect(s.goals).toHaveLength(1);expect(s.views).toHaveLength(0);}finally{await service.close();}
 });
@@ -406,4 +414,38 @@ it('UTF-16 request guard accepts the exact cap and records noncompressible overf
   expect(receipt).toMatchObject({reason:'INPUT_TOO_LARGE',spawned:false,code:null,transport:{requestChars:CODEX_INPUT_MAX_CHARS+2,maxChars:CODEX_INPUT_MAX_CHARS,charUnit:'UTF-16',reconstructionVerified:true,originalInputSha256:digest(JSON.stringify(input)),inventoryEntryCount:0}});
   expect(receipt.transport).toEqual(invocation.transport);expect(receipt.limitation).toContain('未截断证据');
  }finally{vi.restoreAllMocks();syncBuiltinESMExports();}
+});
+
+import { projectGoalReviews } from '../../src/core/human-goal-workflow/scenarios.js';
+it('goal review keeps original opinion, survives reopen and enters analysis without changing goal or passing checks',async()=>{
+ const {service,calls,config}=await fixture();let reopened:HumanGoalService|undefined;try{
+  service.feedback('synthetic',goal(0));await service.idle();let s=service.read('synthetic');const v=s.views[s.currentView!],g=s.goals.at(-1)!,oldGoal=JSON.stringify(g);
+  const q={expectedGeneration:s.generation,idempotencyKey:'business-review',kind:'evidence-contribution',originalText:'Actual counterexample <img>: cannot decide next step',targetIds:[],author:'SYNTHETIC reviewer',provenance:'limited observed judgment',analyze:false,goalReview:{clauseId:g.clauses[0].id,goalHash:g.hash,sourceHash:v.source.hash,analysisAttemptId:v.attemptId,decision:'mismatch',nextObservation:'Try the complete decision path'}};
+  service.feedback('synthetic',q);s=service.read('synthetic');expect(JSON.stringify(s.goals.at(-1))).toBe(oldGoal);expect(s.verificationReceipts??[]).toHaveLength(0);expect(projectGoalReviews(s,v.source.hash)).toMatchObject({acceptance:false,priority:{decision:'mismatch',originalText:q.originalText}});
+  expect(service.feedback('synthetic',q)).toEqual(service.feedback('synthetic',q));await service.close();reopened=new HumanGoalService(config,{revision:'SYNTHETIC-test-v1',async analyze(input){calls.push(input);return model(input);}});
+  const persisted=reopened.read('synthetic');expect(persisted.feedback.at(-1)?.goalReview).toEqual(q.goalReview);reopened.analyze('synthetic',{expectedGeneration:persisted.generation,idempotencyKey:'business-reanalysis'});await reopened.idle();
+  expect(calls.at(-1)!.feedback.at(-1)?.originalText).toBe(q.originalText);expect(calls.at(-1)!.feedback.at(-1)?.goalReview).toEqual(q.goalReview);const updated=reopened.read('synthetic');expect(projectGoalReviews(updated,v.source.hash).clauses[0]).toMatchObject({status:'current',decision:'mismatch',originalText:q.originalText,continuity:'unchanged-mapping'});const changed=structuredClone(updated);changed.views[changed.currentView!].analysis.modules[0].responsibility='Different functional responsibility';expect(projectGoalReviews(changed,v.source.hash).clauses[0]).toMatchObject({status:'stale',decision:'unknown'});expect(projectGoalReviews(changed,v.source.hash).priority).toBeUndefined();
+ }finally{await service.close();await reopened?.close();}
+});
+it('goal review rejects unknown clause, old source, old analysis and goal changes instead of saving a false current opinion',async()=>{
+ const {service,p}=await fixture();try{service.feedback('synthetic',goal(0));await service.idle();const s=service.read('synthetic'),v=s.views[s.currentView!],g=s.goals.at(-1)!;
+ const q={expectedGeneration:s.generation,idempotencyKey:'invalid-review',kind:'evidence-contribution',originalText:'Observed result',author:'SYNTHETIC',provenance:'test',analyze:false,goalReview:{clauseId:g.clauses[0].id,goalHash:g.hash,sourceHash:v.source.hash,analysisAttemptId:v.attemptId,decision:'matches',nextObservation:'Observe further'}};
+ for(const field of ['clauseId','goalHash','sourceHash','analysisAttemptId'])expect(()=>service.feedback('synthetic',{...q,goalReview:{...q.goalReview,[field]:field.endsWith('Hash')?'a'.repeat(64):'not-current'}})).toThrow('请刷新');
+ expect(()=>service.feedback('synthetic',{...q,kind:'desired-change'})).toThrow('不改写目标');await writeFile(join(p.sourceRoot,'engine.py'),'def run():\n    return 99\n');expect(()=>service.feedback('synthetic',q)).toThrow('请刷新');expect(()=>service.feedback('synthetic',{...q,originalText:'  '})).toThrow('实际观察');expect(service.read('synthetic').feedback).toHaveLength(s.feedback.length);
+ }finally{await service.close();}
+});
+
+it('superseded review is retained in feedback history but no longer prioritizes a current mismatch',async()=>{
+ const {service}=await fixture();try{service.feedback('synthetic',goal(0));await service.idle();let s=service.read('synthetic');const v=s.views[s.currentView!],g=s.goals.at(-1)!;
+ const result:any=service.feedback('synthetic',{expectedGeneration:s.generation,idempotencyKey:'superseded-review',kind:'evidence-contribution',originalText:'Earlier observed mismatch',author:'SYNTHETIC',provenance:'test',analyze:false,goalReview:{clauseId:g.clauses[0].id,goalHash:g.hash,sourceHash:v.source.hash,analysisAttemptId:v.attemptId,decision:'mismatch',nextObservation:'Observe counterexample'}});s=service.read('synthetic');expect(projectGoalReviews(s,v.source.hash).priority?.decision).toBe('mismatch');
+ service.feedback('synthetic',{expectedGeneration:s.generation,idempotencyKey:'correct-review-classification',kind:'interpretation-correction',originalText:'Earlier report was mistaken; retain its history',author:'SYNTHETIC',provenance:'explicit correction',supersedes:result.feedbackId,analyze:false});s=service.read('synthetic');expect(s.feedback.some(f=>f.id===result.feedbackId)).toBe(true);expect(projectGoalReviews(s,v.source.hash)).toMatchObject({clauses:[{status:'unreviewed',decision:'unknown'}]});expect(projectGoalReviews(s,v.source.hash).priority).toBeUndefined();
+ }finally{await service.close();}
+});
+
+it('overall priority uses important current mismatch opinions but a matching opinion never passes technical conditions',async()=>{
+ const {service}=await fixture();try{service.feedback('synthetic',{...goal(0),clauses:[{id:'core-goal',text:'Core result',importance:'core'},{id:'support-goal',text:'Supporting result',importance:'supporting'}]});await service.idle();let s=service.read('synthetic');const v=s.views[s.currentView!],g=s.goals.at(-1)!;
+ for(const [clauseId,decision,originalText] of [['core-goal','mismatch','Core counterexample'],['support-goal','mismatch','Supporting counterexample']] as const){service.feedback('synthetic',{expectedGeneration:service.read('synthetic').generation,idempotencyKey:'priority-'+clauseId,originalText,kind:'evidence-contribution',author:'SYNTHETIC',provenance:'reader report',analyze:false,goalReview:{clauseId,decision,goalHash:g.hash,sourceHash:v.source.hash,analysisAttemptId:v.attemptId,nextObservation:'Observe the actual result'}});}
+ const loop=service.closedLoop('synthetic');expect(loop.goalReviews.priority?.clauseId).toBe('core-goal');expect(loop.nextAction).toContain('Core counterexample');expect(loop.priorityReason).toContain('不是已验证根因');expect(loop.status).not.toBe('verified');
+ service.feedback('synthetic',{expectedGeneration:service.read('synthetic').generation,idempotencyKey:'matching-core',originalText:'It matches my limited observation',kind:'evidence-contribution',author:'SYNTHETIC',provenance:'reader report',analyze:false,goalReview:{clauseId:'core-goal',decision:'matches',goalHash:g.hash,sourceHash:v.source.hash,analysisAttemptId:v.attemptId,nextObservation:'Observe another scenario'}});const later=service.closedLoop('synthetic');expect(later.goalReviews.priority?.clauseId).toBe('support-goal');expect(later.status).not.toBe('verified');expect(service.read('synthetic').verificationReceipts??[]).toHaveLength(0);
+ }finally{await service.close();}
 });

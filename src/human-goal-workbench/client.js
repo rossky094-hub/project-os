@@ -5,8 +5,8 @@ const statusNames={'unknown':'未知 / 缺证','implemented-unverified':'实现�
 const kinds={'interpretation-correction':'程序理解有误','desired-change':'我希望的是','evidence-contribution':'补充事实 / 认可当前理解'};
 const importanceNames={'hard-constraint':'硬约束','core':'核心目标','supporting':'支持目标','optional':'可选目标'};
 let projectId='',state=null,view=null,selection=null,projects=[],pan={x:0,y:0,zoom:1},positions=new Map(),polling=false,lastStamp='',editing=false;
-let selectedRound=null,cameraBinding=null,workspace='map',historicalRound=null;
-let modelView='mainline',journeyId=null,mainlineReturn='agents',mainlineReturnRound=null;
+let selectedRound=null,cameraBinding=null,workspace='goals',historicalRound=null;
+let modelView='mainline',journeyId=null,mainlineReturn='goals',mainlineReturnRound=null;
 const cameras=new Map();
 const nodeSize={width:210,height:100};let layoutColumns=1;
 function graphBinding(){return view?JSON.stringify(['folded-desktop-v1',layoutColumns,projectId,view.attemptId,view.source.hash,view.goal?.hash]):null;}
@@ -46,8 +46,8 @@ function renderLifecycle(){
 }
 
 async function refresh(force=false){if(polling||!projectId)return;polling=true;const requestedProject=projectId;try{const data=await api(endpoint('state'));if(requestedProject!==projectId)return;state=data;if(!data.rounds?.rounds?.some(r=>r.id===selectedRound))selectedRound=data.rounds?.rounds?.at(-1)?.id||null;view=displayedView();const stamp=JSON.stringify([projectId,data.currentView,data.diagnosisStatus,data.closedLoop?.status,data.closedLoop?.receipts?.map(r=>[r.id,r.current]),data.goals.at(-1)?.hash,data.generation,data.attempts.map(a=>[a.id,a.state,a.error]),data.actions.length,data.rounds?.revision,data.activity?.revision,data.mainline?.revision,data.mainline?.sourceHash,data.rounds?.registrations?.map(r=>[r.status,r.cursor,r.issue]),data.roundAnalysis?.jobs?.map(j=>[j.id,j.state,j.error])]);renderJob();renderLifecycle();if(force||stamp!==lastStamp){lastStamp=stamp;render();} }catch(e){if(requestedProject===projectId)notice(e.message);}finally{polling=false;if(requestedProject!==projectId)await refresh(true);}}
-function renderJob(){const a=state.attempts.at(-1);$('job').replaceChildren();if(a){$('job').append(badge(a.state),document.createTextNode(` · 目标 ${a.goalVersion==null?'未提供':`G${a.goalVersion}`} · ${elapsed(a)}${a.totalBudgetMs===null?' · 无时间上限':''}`));if(['running','queued'].includes(a.state))$('job').append(button('取消',()=>api(endpoint('cancel'),{attemptId:a.id}).then(()=>refresh(true)).catch(e=>notice(e.message))));else if(['failed','interrupted'].includes(a.state))$('job').append(button('查看失败 / 恢复',()=>showAttempt(a)));}$('analyze').disabled=state.attempts.some(a=>['running','queued'].includes(a.state));$('analyze').textContent=view?'重新检查来源':a&&['running','queued'].includes(a.state)?'正在理解代码…':'开始理解代码';$('save-state').textContent=`持久化 revision ${state.generation} · 已保存到本地服务`;}
-function render(){const reading=captureReading();const rounds=state.rounds?.rounds||[];if(!rounds.some(r=>r.id===selectedRound))selectedRound=rounds.at(-1)?.id||null;view=displayedView();const p=projects.find(p=>p.id===projectId);$('identity').textContent=`${p.label} · ${p.sourceKind==='snapshot'?'保留源快照（非实时仓库）':'已登记工作树'}`;$('generation').textContent=`${currentGoal()?`G${currentGoal().version}`:'目标未提供'}${view&&view.goal?.hash!==currentGoal()?.hash?' · 图为上次目标结果':''}`;$('purpose').textContent=view?.analysis.purpose||'从实际来源开始理解';$('coverage').textContent=view?`${view.source.files.length} / ${view.source.inventory.length} 个候选文件 · ${Math.round(view.source.suppliedBytes/1024)} KB 片段 / ${Math.round(view.source.totalBytes/1024)} KB 来源 · ${view.source.partial?'部分覆盖，未读完整文件':'已读取登记范围'} · 尚未执行 subject`:'分析会留下实际源文件、行号、覆盖范围与新的执行记录。';$('goal-summary').textContent=currentGoal()?.originalText||'还没有人类目标。可先理解代码，也可直接填写你的期望。';$('clauses').replaceChildren(...(currentGoal()?.clauses||[]).map(c=>button(`${isRawCriterion(c)?'完整原文核对项（自动保留）':importanceNames[c.importance]} · ${c.text}`,()=>select('clause',c.id))));if(selection&&!view?.analysis.modules.some(m=>m.id===selection.id)&&selection.kind==='module'){const repl=view?.analysis.modules.filter(m=>m.supersedes.includes(selection.id))||[];if(repl.length===1)selection.id=repl[0].id;else if(repl.length>1)notice(`选中模块有多个替代，请在图中选择：${repl.map(m=>m.title).join('、')}`);}renderOverall();renderClosedLoop();renderRounds();renderActivity();renderWorkflow();renderGraph();renderGaps();if(!editing)renderDetail();renderMapContext();restoreReading(reading);}
+function renderJob(){const a=state.attempts.at(-1);$('job').replaceChildren();if(a){if(!['running','queued'].includes(a.state)&&a.promoted&&view&&state.closedLoop?.sourceHash&&view.source.hash!==state.closedLoop.sourceHash)$('job').append(el('span','上版分析完成 · 当前代码待复核'));else $('job').append(badge(a.state),document.createTextNode(` · 目标 ${a.goalVersion==null?'未提供':`G${a.goalVersion}`} · ${elapsed(a)}${a.totalBudgetMs===null?' · 无时间上限':''}`));if(['running','queued'].includes(a.state))$('job').append(button('取消',()=>api(endpoint('cancel'),{attemptId:a.id}).then(()=>refresh(true)).catch(e=>notice(e.message))));else if(['failed','interrupted'].includes(a.state))$('job').append(button('查看失败 / 恢复',()=>showAttempt(a)));}$('analyze').disabled=state.attempts.some(a=>['running','queued'].includes(a.state));$('analyze').textContent=view?'重新检查来源':a&&['running','queued'].includes(a.state)?'正在理解代码…':'开始理解代码';$('save-state').textContent=`持久化 revision ${state.generation} · 已保存到本地服务`;}
+function render(){const reading=captureReading();const rounds=state.rounds?.rounds||[];if(!rounds.some(r=>r.id===selectedRound))selectedRound=rounds.at(-1)?.id||null;view=displayedView();const p=projects.find(p=>p.id===projectId);$('identity').textContent=`${p.label} · ${p.sourceKind==='snapshot'?'保留源快照（非实时仓库）':'已登记工作树'}`;$('generation').textContent=`${currentGoal()?`G${currentGoal().version}`:'目标未提供'}${view&&view.goal?.hash!==currentGoal()?.hash?' · 图为上次目标结果':''}`;$('purpose').textContent=view?.analysis.purpose||'从实际来源开始理解';$('coverage').textContent=view?`${view.source.files.length} / ${view.source.inventory.length} 个候选文件 · ${Math.round(view.source.suppliedBytes/1024)} KB 片段 / ${Math.round(view.source.totalBytes/1024)} KB 来源 · ${view.source.partial?'部分覆盖，未读完整文件':'已读取登记范围'} · 尚未执行 subject`:'分析会留下实际源文件、行号、覆盖范围与新的执行记录。';$('goal-summary').textContent=currentGoal()?.originalText||'还没有人类目标。可先理解代码，也可直接填写你的期望。';$('clauses').replaceChildren(...(currentGoal()?.clauses||[]).map(c=>button(`${isRawCriterion(c)?'完整原文核对项（自动保留）':importanceNames[c.importance]} · ${c.text}`,()=>select('clause',c.id))));if(selection&&!view?.analysis.modules.some(m=>m.id===selection.id)&&selection.kind==='module'){const repl=view?.analysis.modules.filter(m=>m.supersedes.includes(selection.id))||[];if(repl.length===1)selection.id=repl[0].id;else if(repl.length>1)notice(`选中模块有多个替代，请在图中选择：${repl.map(m=>m.title).join('、')}`);}renderOverall();renderClosedLoop();renderBusiness();renderRounds();renderActivity();renderWorkflow();renderGraph();renderGaps();if(!editing)renderDetail();renderMapContext();restoreReading(reading);}
 // Focus is a one-hop neighborhood, not transitive reachability or evidence of causality.
 function relevant(){
  const ids=new Set();if(!view||!selection)return ids;const a=view.analysis;
@@ -102,6 +102,7 @@ function renderGaps(){
  const open=(view?.gaps.filter(g=>g.lifecycle==='open')||[]).sort((a,b)=>a.rank-b.rank||a.id.localeCompare(b.id));
  $('gap-count').textContent=open.length?String(open.length):'';
  if(!view){list.append(el('p','分析后这里会显示有来源的差距和下一步。','muted'));return;}
+ if(!historicalRound&&state.closedLoop?.diagnosisStale)list.append(el('p','以下是上版差距；目标、来源或证据已变化，等待新的整体判断。当前行动已调整，旧清单仅供核查。','delivery-pending'));
  if(!currentGoal())list.append(el('p','先填写人类目标，再比较实现差距。','muted'));
  else if(!open.length)list.append(el('p','当前分析未列开放差距；不代表所有行为已验证。','muted'));
  const appendGap=(g,host)=>{const b=button('',()=>select('gap',g.id),`gap ${selection?.id===g.id?'selected':''}`);b.dataset.id=g.id;b.title=g.expected;
@@ -130,13 +131,13 @@ if(clauses.length){
  references([...sourceRefs.values()],goals);d.append(goals);
 }
 const conflicts=a.conflicts.filter(c=>c.targetId===id||c.clauseIds.includes(id));for(const c of conflicts)d.append(el('div',`目标冲突：${c.parentText}\n模块期望：${c.moduleText}\n${c.reason}`,'conflict'));d.append(el('h3','来源依据'));references(refs,d);for(const g of view.gaps.filter(g=>g.targetIds.includes(id)&&g.lifecycle==='open'))d.append(button(`相关差距：${g.expected}`,()=>select('gap',g.id),'text-item'));d.append(button('原始反馈与分类',showFeedback));}
-function dialog(title){$('dialog-title').textContent=title;$('dialog-body').replaceChildren();if(!$('dialog').open)$('dialog').showModal();return $('dialog-body');}
+function dialog(title){$('dialog-title').textContent=title;$('dialog-body').replaceChildren();$('dialog-body').classList.remove('reader-review');if(!$('dialog').open)$('dialog').showModal();return $('dialog-body');}
 function field(parent,label,node){const l=el('label',label,'form-field');parent.append(l,node);l.append(node);return node;}
 function selectOptions(items,value){const s=el('select');for(const[k,v]of Object.entries(items)){const o=el('option',v);o.value=k;s.append(o);}s.value=value;return s;}
 function wholeForm(originalFeedback){editing=true;const d=dialog('核对整体目标'),form=el('form'),goal=currentGoal(),baseGeneration=state.generation;d.append(form);const kind=field(form,'这段反馈属于',selectOptions(kinds,originalFeedback?.kind||'desired-change'));const original=field(form,'保留你的原话',el('textarea'));original.value=originalFeedback?.originalText||goal?.originalText||'';const clauses=el('div');form.append(el('h3','期望结果与重要性'),el('p','只修改原话也会进入新分析：系统会保留完整原文核对项，不作语义拆解。既有详细条款和模块关联保留，请核对是否仍符合新目标。删除或降低详细目标只改变范围，不算修复。','muted'),clauses);function row(c){const r=el('div',undefined,'clause-row');r.dataset.id=c?.id||`clause-${key()}`;if(c&&isRawCriterion(c))r.append(el('small','完整原文核对项 · 自动逐字保留，未经人类逐条确认；可在原话中更新。'));const input=el('textarea');input.value=c?.text||'';input.readOnly=!!c&&isRawCriterion(c);input.placeholder='例如：重开后仍可看到来源与上次纠正';const imp=selectOptions(importanceNames,c?.importance||'core');r.append(input,imp,button('−',()=>r.remove()));clauses.append(r);}for(const c of goal?.clauses||[null])row(c);form.append(button('＋ 增加目标条款',()=>row(null)));const extra=field(form,'混合反馈可拆成第二条原文（可选）',el('textarea'));extra.placeholder='例如另一句是在纠正程序理解，而不是新增需求';const extraKind=field(form,'第二条分类',selectOptions(kinds,'interpretation-correction'));const submitButton=el('button','保存反馈并重新分析','primary');submitButton.type='submit';form.append(el('p','新分析前保留上次图。解释纠正不会悄悄改写人类目标。','muted'),submitButton);kind.onchange=()=>{clauses.hidden=kind.value!=='desired-change';};kind.onchange();form.onsubmit=async event=>{event.preventDefault();submitButton.disabled=true;try{const rows=[...clauses.children].filter(r=>r.querySelector('textarea').value.trim());if(kind.value==='desired-change'&&goal&&!rows.length)throw new Error('请保留至少一条核对项；删除目标只改变范围。');const payload={expectedGeneration:baseGeneration,originalText:original.value,kind:kind.value,targetIds:[],author:'local-human',provenance:'workbench user input',analyze:!extra.value.trim(),...(originalFeedback?{supersedes:originalFeedback.id}:{}),...(kind.value==='desired-change'&&rows.length?{clauses:rows.map(r=>({id:r.dataset.id,text:r.querySelector('textarea').value,importance:r.querySelector('select').value,constraints:goal?.clauses.find(c=>c.id===r.dataset.id)?.constraints||[],examples:goal?.clauses.find(c=>c.id===r.dataset.id)?.examples||[]}))}:{})};const savedResult=await submit('feedback',payload);if(!savedResult.analysisError)notice(kind.value==='desired-change'?`已保存目标 G${currentGoal()?.version}；分析状态见目标区和图旁。`:'反馈已保存；分析状态见图旁。');if(extra.value.trim())await submit('feedback',{originalText:extra.value,kind:extraKind.value,targetIds:[],author:'local-human',provenance:'workbench split mixed feedback; original parts retained'});editing=false;$('dialog').close();renderDetail();}catch(e){d.append(el('p',e.message,'conflict'));}finally{submitButton.disabled=false;}};}
 function moduleForm(n){if(!currentGoal()){wholeForm();return;}editing=true;const d=dialog(n.kind==='proposed'?'提出缺少的能力':'核对模块职责'),form=el('form'),baseGeneration=state.generation;d.append(form);const previous=state.expectations.find(e=>e.targetId===n.id);const kind=field(form,'反馈分类',selectOptions(kinds,'desired-change'));const original=field(form,'你的原始反馈',el('textarea'));original.placeholder='说明理解哪里不对，或你希望发生什么变化';const responsibility=field(form,'期望职责',el('textarea'));responsibility.value=previous?.responsibility||n.responsibility;const inputs=field(form,'输入（每行一项）',el('textarea'));inputs.value=(previous?.inputs||n.inputs).join('\n');const outputs=field(form,'输出（每行一项）',el('textarea'));outputs.value=(previous?.outputs||n.outputs).join('\n');const examples=field(form,'成功例子（每行一项）',el('textarea'));examples.value=(previous?.examples||[]).join('\n');const disposition=field(form,'模块安排',selectOptions({required:'需要这个模块',optional:'可选',unnecessary:'不再需要', 'proposed-missing':'拟需 / 尚未定位'},previous?.disposition||(n.kind==='proposed'?'proposed-missing':'required')));const cs=field(form,'对应整体目标（可多选）',el('select'));cs.multiple=true;for(const c of currentGoal().clauses){const o=el('option',c.text);o.value=c.id;o.selected=previous?.clauseIds.includes(c.id)??true;cs.append(o);}const replacement=field(form,'拆分 / 合并 / 重分配：替代哪些旧模块（可选）',el('select'));replacement.multiple=true;for(const old of view?.analysis.modules||[]){const o=el('option',old.title);o.value=old.id;replacement.append(o);}form.append(el('p','这里只调整理解与期望。若与整体目标冲突，分析会并列展示，整体目标保持原文。','muted'));const b=el('button','保存模块反馈并重新分析','primary');b.type='submit';form.append(b);form.onsubmit=async event=>{event.preventDefault();b.disabled=true;try{await submit('feedback',{expectedGeneration:baseGeneration,originalText:original.value,kind:kind.value,targetIds:n.kind==='proposed'?[]:[n.id],author:'local-human',provenance:'workbench module review',...(kind.value==='desired-change'?{expectation:{targetId:n.id,responsibility:responsibility.value,inputs:inputs.value.split('\n').filter(Boolean),outputs:outputs.value.split('\n').filter(Boolean),examples:examples.value.split('\n').filter(Boolean),clauseIds:[...cs.selectedOptions].map(o=>o.value),disposition:disposition.value,replaces:[...replacement.selectedOptions].map(o=>o.value)}}:{})});editing=false;$('dialog').close();renderDetail();}catch(e){form.append(el('p',e.message,'conflict'));}finally{b.disabled=false;}};}
 async function showSource(r){const d=dialog(`${r.path} · 来源行 ${r.start}–${r.end}`);d.append(el('p','读取并核对源文件哈希…','muted'));try{const data=await api(`${endpoint('source')}?path=${encodeURIComponent(r.path)}&sha256=${r.sha256}&start=${r.start}&end=${r.end}`);d.replaceChildren(el('p',`SHA256 ${data.sha256}`,'muted'),el('pre',data.text));}catch(e){d.replaceChildren(el('p',e.message,'conflict'));}}
-function showScope(){const d=dialog('实际检查范围');if(!view){d.append(el('p','尚无分析；将扫描登记范围：'),el('pre',projects.find(p=>p.id===projectId).scope.join('\n')));return;}d.append(el('p',view.analysis.coverageNotes),el('p',`源绑定 ${view.source.hash}`,'muted'),el('p',view.source.runtime,'muted'));for(const limitation of view.analysis.limitations)d.append(el('p',limitation,'muted'));for(const f of view.source.files){const box=el('div',undefined,'feedback-card');box.append(el('strong',f.path),el('p',`${f.suppliedLines}/${f.lines} 行 · ${f.truncated?'片段读取':'登记文件全行'} · 实际行段 ${f.ranges.map(r=>`${r.start}–${r.end}`).join(', ')}`,'muted'));for(const r of f.ranges.slice(0,12))box.append(button(`读 ${r.start}–${r.end}`,()=>showSource({...r,path:f.path,sha256:f.sha256}),'linklike'));d.append(box);}d.append(el('h3','未提供的文件 / 范围'));for(const g of view.source.readGaps||[])d.append(el('p',`${g.path}:${g.start}–${g.end} · 未提供，不能推断实现不存在`,'muted'));for(const o of view.source.omitted)d.append(el('p',`${o.path} · ${o.reason}`,'muted'));}
+function showScope(){const d=dialog('实际检查范围');if(!view){d.append(el('p','尚无分析；将扫描登记范围：'),el('pre',projects.find(p=>p.id===projectId).scope.join('\n')));return;}d.append(el('p',view.analysis.coverageNotes),el('p',`源绑定 ${view.source.hash}`,'muted'),el('p',view.source.runtime,'muted'));for(const limitation of view.analysis.limitations)d.append(el('p',limitation,'muted'));const history=state.attempts?.find(a=>a.id===view.attemptId)?.input?.rounds?.history;if(history)d.append(el('h3','本次分析的开发历史范围'),el('p',`按当前目标读取最近 ${history.window} 轮和相关活动／依赖，提供 ${history.suppliedEvents}/${history.totalEvents} 条事件；其余 ${history.archivedRounds.length} 个登记保留在本地历史，本次仅提供索引，不声称已重新理解全部历史。`,'muted'));for(const f of view.source.files){const box=el('div',undefined,'feedback-card');box.append(el('strong',f.path),el('p',`${f.suppliedLines}/${f.lines} 行 · ${f.truncated?'片段读取':'登记文件全行'} · 实际行段 ${f.ranges.map(r=>`${r.start}–${r.end}`).join(', ')}`,'muted'));for(const r of f.ranges.slice(0,12))box.append(button(`读 ${r.start}–${r.end}`,()=>showSource({...r,path:f.path,sha256:f.sha256}),'linklike'));d.append(box);}d.append(el('h3','未提供的文件 / 范围'));for(const g of view.source.readGaps||[])d.append(el('p',`${g.path}:${g.start}–${g.end} · 未提供，不能推断实现不存在`,'muted'));for(const o of view.source.omitted)d.append(el('p',`${o.path} · ${o.reason}`,'muted'));}
 function showFeedback(){const d=dialog('原始反馈、分类与冲突');for(const f of state.feedback){const card=el('div',undefined,'feedback-card');card.append(badge(kinds[f.kind]),el('p',f.originalText),el('p',`${f.author} · ${f.createdAt} · 目标版本 ${f.goalVersion??'无'}${f.supersedes?' · 更正旧反馈分类':''}`,'muted'),button('纠正分类（保留原记录）',()=>wholeForm(f)));d.append(card);}if(!state.feedback.length)d.append(el('p','尚未提交反馈。'));for(const c of state.conflicts)d.append(section(`冲突记录 · ${c.reason}`,JSON.stringify(c.request,null,2)));if(view?.analysis.feedbackResponse)d.append(section('本次来源核查如何回应反馈',view.analysis.feedbackResponse));}
 function showAttempt(a){const d=dialog('分析执行与恢复');d.append(badge(a.state),section('错误 / 限制',a.error),section('输入绑定',`${a.inputHash}\n目标 ${a.goalVersion??'未提供'}\n源 ${a.sourceHash}`),section('记录目录',a.rawDir),section('分析计划',a.plan.reason),section('已用 / 总预算',`${a.usedMs} ms${a.elapsedAccounting==='conservative-upper-bound'?'（中断后保守计入，非实测模型用量）':''} / ${a.totalBudgetMs===null?'无时间上限':`${a.totalBudgetMs} ms`}`));if(['failed','interrupted'].includes(a.state)){const reason=field(d,'本次支持的恢复依据',el('textarea'));reason.placeholder='例如执行器暂时不可用已恢复；保持原目标、来源与剩余预算';d.append(button('显式重试（保留失败）',()=>submit('retry',{attemptId:a.id,recoveryBasis:reason.value}).then(()=>{$('dialog').close();editing=false;}).catch(e=>d.append(el('p',e.message,'conflict')))));}}
 async function history(){const d=dialog('前后版本与执行历史');try{const all=await api(endpoint('history'));for(const a of all.attempts)d.append(button(`${a.createdAt} · ${statusNames[a.state]} · ${a.promoted?'已发布':'仅记录 / 未发布'}`,()=>showAttempt(a),'text-item'));const options=el('select');for(const[v,i]of all.views.map((v,i)=>[v,i])){const o=el('option',`${v.goal?`G${v.goal.version}`:'目标未提供'} · revision ${v.generation} · ${v.createdAt}`);o.value=String(i);options.append(o);}options.value=String(Math.max(0,all.views.length-1));d.append(el('h3','选择版本，比较其输入与变化'),options);const content=el('div');d.append(content);function show(){const index=Number(options.value),v=all.views[index],before=all.views[index-1];content.replaceChildren();if(!v)return;const pair=el('div',undefined,'compare');for(const [label,item]of [['此前',before],['本次',v]]){const box=el('article');box.append(el('h3',label),section('人类目标',item?.goal?.originalText||'未提供'),section('代码理解',item?.analysis.purpose||'未分析'));pair.append(box);}content.append(pair);for(const[k,val]of Object.entries(v.changes))content.append(section(({goal:'目标变化',interpretation:'解释变化',source:'来源变化',ranking:'排序变化',evidence:'运行证据'})[k]||k,val));content.append(section('反馈吸收',v.analysis.feedbackResponse));for(const g of v.gaps)content.append(section(`${statusNames[g.lifecycle]} · ${g.expected}`,g.closureReason||g.rankReason));}options.onchange=show;show();}catch(e){d.append(el('p',e.message,'conflict'));}}
@@ -152,25 +153,111 @@ function displayedView(){return (historicalRound&&selectedRoundView())||(state?.
 function renderMapContext(){const host=$('map-context');host.replaceChildren();host.hidden=!historicalRound||workspace!=='map';if(historicalRound)host.append(el('span','历史分析 · 仅供核查，不代表当前目标进展'),button('返回当前项目图',()=>switchWorkspace('map')));}
 function switchWorkspace(name,historyId=null){
  workspace=name;historicalRound=name==='map'?historyId:null;view=displayedView();
- $('model-views').hidden=name!=='map';$('rounds-panel').hidden=name!=='rounds';$('agents-panel').hidden=name!=='agents';$('map-workspace').hidden=name!=='map';
- for(const key of ['map','rounds','agents']){const tab=$('tab-'+key);tab.setAttribute('aria-selected',String(key===name));tab.tabIndex=key===name?0:-1;}
+ $('model-views').hidden=name!=='map';$('goals-workspace').hidden=name!=='goals';$('rounds-panel').hidden=name!=='rounds';$('agents-panel').hidden=name!=='agents';$('map-workspace').hidden=name!=='map';
+ for(const key of ['goals','map','rounds','agents']){const tab=$('tab-'+key);tab.setAttribute('aria-selected',String(key===name));tab.tabIndex=key===name?0:-1;}
  document.body.classList.remove('inspector-open');selection=null;render();renderLifecycle();
 }
-function captureReading(){const focus=document.activeElement;return {focusId:focus?.id,objectId:focus?.dataset?.id,stepId:focus?.dataset?.stepId,flowLink:focus?.dataset?.flowLink,scroll:[...document.querySelectorAll('#mainline-panel,#workflow-scroll,#detail-panel,#detail,#rounds-panel,#round-timeline,#round-detail,#agents-panel,#gaps-panel,#graph-list')].map(n=>[n.id,n.scrollTop,n.scrollLeft]),details:[...document.querySelectorAll('details')].map(n=>[n.id||n.className||n.querySelector('summary')?.textContent,n.open])};}
+function captureReading(){const focus=document.activeElement;return {focusId:focus?.id,objectId:focus?.dataset?.id,stepId:focus?.dataset?.stepId,flowLink:focus?.dataset?.flowLink,scroll:[...document.querySelectorAll('#goals-workspace,#mainline-panel,#workflow-scroll,#detail-panel,#detail,#rounds-panel,#round-timeline,#round-detail,#agents-panel,#gaps-panel,#graph-list')].map(n=>[n.id,n.scrollTop,n.scrollLeft]),details:[...document.querySelectorAll('details')].map(n=>[n.id||n.className||n.querySelector('summary')?.textContent,n.open])};}
 function restoreReading(reading){for(const [id,top,left]of reading.scroll){if($(id)){$(id).scrollTop=top;$(id).scrollLeft=left;}}for(const n of document.querySelectorAll('details')){const key=n.id||n.className||n.querySelector('summary')?.textContent;const found=reading.details.find(x=>x[0]===key);if(found)n.open=found[1];}if(document.activeElement===document.body){const target=reading.focusId?$(reading.focusId):reading.flowLink?[...document.querySelectorAll('[data-flow-link]')].find(n=>n.dataset.flowLink===reading.flowLink):reading.stepId?[...document.querySelectorAll('[data-step-id]')].find(n=>n.dataset.stepId===reading.stepId):[...document.querySelectorAll('[data-id]')].find(n=>n.dataset.id===reading.objectId);target?.focus({preventScroll:true});}}
 
+function overviewRound(){
+ if(historicalRound)return null;
+ const latest=state.rounds?.rounds?.at(-1),progress=mainlineRound(latest?.id);
+ if(!progress)return null;
+ const box=section('最近登记一轮',progress.purpose||'开发目的未登记');
+ box.id='overview-round';
+ box.append(el('p',mainlineStatusNames[progress.status]||progress.status));
+ if(progress.mapping.state==='confirmed')box.title=`${progress.mapping.journeyTitle}：${progress.steps.map(s=>s.title).join('、')}`;
+ const comparison=progress.comparison;
+ box.append(el('p',comparison?.summary||'还没有可比较的本轮验证证据。','muted'));
+ box.append(button('查看本轮前后与回执',()=>{selectedRound=progress.roundId;switchWorkspace('rounds');},'linklike'));
+ return box;
+}
+function currentRoundDelivery(){
+ if(historicalRound)return null;
+ const round=mainlineRound(state.rounds?.rounds?.at(-1)?.id);
+ return round?.delivery?.sourceCurrent?round:null;
+}
+function currentAction(){
+ if(historicalRound)return null;
+ const action=state.closedLoop?.nextActionDetails;
+ if(action&&action.text===state.closedLoop.nextAction&&action.goalHash===(currentGoal()?.hash||null)&&action.sourceHash===state.closedLoop.sourceHash)return action;
+ // Older services still expose the authoritative current action as a string.
+ return {kind:'current',text:state.closedLoop?.nextAction||'核对当前目标与来源，再确定下一行动',reason:state.closedLoop?.priorityReason||'依据当前目标、来源和限定证据核对。',nextCheck:'核对对应的用户结果与证据范围。'};
+}
+function renderCurrentAction(host,title='目前推荐的一个行动',compact=false){
+ const action=currentAction();if(!action)return;
+ const box=el('section',undefined,'current-action');box.dataset.actionKind=action.kind;
+ box.append(section(title,action.text));
+ const method=el('details',undefined,'current-action-method');method.append(el('summary',compact?'为什么先做 · 怎样判断有用':'怎样判断有用 · 查看核对方法'));
+ if(compact)method.append(section('为什么先做这一步',action.reason));else box.append(section('为什么先做这一步',action.reason));
+ method.append(section('完整核对方法',action.nextCheck));box.append(method);
+ if(action.kind==='analysis-required'){const run=button('重新检查当前目标与代码',()=>submit('analyze',{}).catch(()=>{}),'linklike');run.disabled=state.attempts.some(a=>['running','queued'].includes(a.state));box.append(run);}
+ else if(action.kind==='goal-required')box.append(button('填写整体目标',wholeForm,'linklike'));
+ else if(['scenario-review','mapping-review'].includes(action.kind))box.append(button('核对场景与条件',showScenarios,'linklike'));
+ else if(action.kind==='goal-counterexample')box.append(button('查看目标反例与关联',showGoalReview,'linklike'));
+ else if(action.kind==='diagnosis')box.append(button('查看整体判断与依据',showOverview,'linklike'));
+ host.append(box);return box;
+}
+function correctDelivery(round){
+ editing=true;const goal=currentGoal(),generation=state.generation,openedProject=projectId,sourceHash=state.closedLoop.sourceHash,annotationId=round.delivery.annotationId;
+ const host=dialog('指出这份说明的问题');host.append(section('你正在核对的说明',round.delivery.title),el('p','写出哪句话不对或哪里仍看不懂。先保存到本机，后续重新检查来源时会带入分析；这不会修改你的目标。','muted'));
+ const form=el('form'),answer=field(form,'哪里不对或看不懂（保留你的原话）',el('textarea'));answer.required=true;answer.id='delivery-correction';answer.placeholder='例如：你说这轮已经改善了，但我仍不知道它推进了哪项目标。';const error=el('p',undefined,'conflict');error.setAttribute('role','alert');const save=el('button','保存问题到本机','primary');save.type='submit';form.append(error,save);host.append(form);
+ form.onsubmit=async event=>{event.preventDefault();if(projectId!==openedProject||state.generation!==generation||currentGoal()?.hash!==goal.hash||state.closedLoop?.sourceHash!==sourceHash||mainlineRound(round.roundId)?.delivery?.annotationId!==annotationId){error.textContent='说明依据已变化，草稿保留。请复制原话，再按当前说明核对。';return;}if(!answer.value.trim()){error.textContent='请留下你实际遇到的问题。';return;}save.disabled=true;try{await submit('feedback',{expectedGeneration:generation,kind:'interpretation-correction',originalText:answer.value,targetIds:[],author:'local-human',provenance:`用户对本轮开发说明的直接纠正；目标 ${goal.hash}；当前观察源码 ${sourceHash}；轮次 ${round.roundId}；说明 ${annotationId}。原话不构成独立执行证明或产品接受。`,analyze:false});editing=false;$('dialog').close();notice('问题已保存到本机，尚未重新分析。下一次重新检查来源时会包含你的原话。');}catch(e){error.textContent=`${e.message}。原话保留在这里，未自动覆盖。`;save.disabled=false;}};
+}
+async function showObservationRecord(observation){
+ const openedProject=projectId,d=dialog('实际执行记录 · 范围验证');
+ d.append(section('实际检查范围',observation.scopeSummary||'未说明'),section('结果与限制',`${observation.result==='passed'?'检查通过':'未通过或未知'}；${(observation.limitations||[]).join('；')}`),section('原件身份',`${observation.id} · SHA256 ${observation.rawHash}`));
+ const raw=el('details',undefined,'observation-original'),loading=el('p','正在读取这项原件…','muted');raw.append(el('summary','执行命令、输出与原件'),loading);d.append(raw);
+ try{
+  const result=await api(endpoint(`observation-record?observationId=${encodeURIComponent(observation.id)}&rawHash=${encodeURIComponent(observation.rawHash)}`));
+  if(projectId!==openedProject||!$('dialog').open||!raw.isConnected)return;
+  if(result.observationId!==observation.id||result.rawHash!==observation.rawHash||typeof result.rawRecord!=='string')throw Error('原件身份不符，需重新核对');
+  loading.replaceWith(el('pre',result.rawRecord));
+ }catch(e){if(projectId===openedProject&&$('dialog').open&&raw.isConnected){loading.textContent=`原件暂不可读取：${e.message}`;loading.className='conflict';}}
+}
+function renderDelivery(round,host,compact=false){
+ const report=round?.delivery;if(!report)return;
+ const box=el('section',undefined,`round-delivery${compact?' compact':''}`);box.dataset.deliveryRound=round.roundId;
+ box.append(el('h2',report.title),el('p',`与你目标的关系：${report.goalConnection}`,'delivery-goal'));
+ if(!report.sourceCurrent)box.append(el('p','这是此前来源的开发说明，当前源码或目标已变化；不能沿用旧结果。','conflict'));
+ else if(!report.current)box.append(el('p','当前代码已有这份说明，图和模型结论仍待更新；旧通过不沿用。','delivery-pending'));
+ else if(state.closedLoop?.diagnosisStale)box.append(el('p','已有新反馈或检查，整体判断待更新；下面保留本轮原说明，当前行动已按新材料调整。','delivery-pending'));
+ const columns=el('div',undefined,'delivery-columns');
+ const change=el('div');change.append(section('之前',report.before),section('现在',report.after));
+ const proof=el('div');proof.append(section('实际检查了什么',report.evidenceSummary));
+ const receipts=(state.closedLoop?.receipts||[]).filter(r=>report.receiptIds.includes(r.id));
+ for(const receipt of receipts)proof.append(button(`${receipt.current&&report.current?'查看检查结果':'查看历史检查'} · ${receipt.checks.map(c=>c.id).join('、')}`,()=>showVerificationReceipt(receipt.id),'linklike'));
+ for(const id of report.observationIds||[]){const observation=state.observations?.find(o=>o.id===id);if(observation)proof.append(button('查看实际执行记录',()=>showObservationRecord(observation),'linklike'));}
+ if(!report.receiptIds.length&&!report.observationIds?.length)proof.append(el('small','尚未关联独立检查；以上是开发者的说明。','muted'));
+ proof.append(section('还差什么',report.remaining));
+ const next=el('div');renderCurrentAction(next,'下一步只做这件事');
+ const recorded=el('details',undefined,'recorded-action');recorded.append(el('summary','记录当时的下一步（开发者说明）'),section('当时提出的行动',report.nextAction),section('当时的判断方法',report.nextCheck));next.append(recorded);
+ columns.append(change,proof,next);const author=el('small',`开发说明：${report.author}。检查结果可点开核对；这份说明不代表你已认可。`,'delivery-author');
+ if(host.id==='overall-diagnosis'||host.id==='latest-delivery'){const preview=el('div',undefined,'delivery-preview');preview.append(section('这一轮的变化',report.after));renderCurrentAction(preview,'下一步');const details=el('details',undefined,'delivery-explanation');details.id='delivery-explanation';details.append(el('summary','为什么做、检查到了哪里、还差什么'),columns,author);box.append(preview,details);}else box.append(columns,author);
+ host.append(box);return box;
+}
 function renderOverall(){
  const host=$('overall-diagnosis');if(!host)return;host.replaceChildren();const round=state.rounds?.rounds?.find(r=>r.id===historicalRound),mapped=!round||!round.stale&&round.viewAttemptId===view?.attemptId;const diagnosis=view?.analysis.diagnosis,stale=!!historicalRound||!mapped||state.diagnosisStatus==='stale'||view&&(view.goal?.hash!==currentGoal()?.hash||view.attemptId!==state.views[state.currentView]?.attemptId);
- host.append(section('整体目标',currentGoal()?.originalText||'尚未保存整体目标，请核对目标。'));const evidence=button('目标原文与完整依据',showOverview,'linklike');evidence.id='overview-evidence';$('overall-panel').querySelector('#overview-evidence')?.remove();$('overall-panel').append(evidence);
- if(!diagnosis){host.append(section('当前判断','尚无整体诊断。开发记录与源码差异可以先查看；已有模块结果不能证明整体旅程成立。'),section('一个优先下一步',state.closedLoop?.nextAction||(mapped?round?.next:null)||[...(view?.gaps||[])].filter(g=>g.lifecycle==='open').sort((a,b)=>a.rank-b.rank)[0]?.action||'核对目标与来源，补充匹配分析和行为证据。'));return;}
+ const delivery=currentRoundDelivery();host.classList.remove('has-delivery');
+ const goal=currentGoal(),labels=goal?.clauses.map(c=>clauseTitle(c))||[];
+ host.append(section('整体业务目标',goal?`G${goal.version} · ${labels.join('、')||goal.originalText}`:'尚未保存整体目标，请核对目标。'));const evidence=button('目标原文与完整依据',showOverview,'linklike');evidence.id='overview-evidence';$('overall-panel').querySelector('#overview-evidence')?.remove();$('overall-panel').append(evidence);
+ const progress=overviewRound();
+ if(!diagnosis){host.append(section(historicalRound?'当时的判断 · 历史':'当前判断','尚无整体诊断。开发记录与源码差异可以先查看；已有模块结果不能证明整体旅程成立。'));if(historicalRound)host.append(section('当时的建议 · 历史',mapped&&round?.next||'历史轮次缺少适用建议，保留未知。'));else renderCurrentAction(host,'一个优先下一步',true);}
+ else {
  host.append(section(stale?'历史判断 · 待核对':diagnosis.certainty==='unknown'?'当前判断 · 证据未齐':'当前判断 · 待验证假设',diagnosis.conclusion));
- host.append(section('一个优先下一步',state.closedLoop?.nextAction||(stale?'目标、来源或证据已变化，请重新检查来源后核对主线建议。':diagnosis.recommendation.action)),el('small',stale?'旧建议仅供核查':'分析建议 · 仍需验证'));
- const detail=el('details'),summary=el('summary','判断依据、竞争解释与最小验证旅程');detail.hidden=true;detail.append(summary,section('诊断范围',`${({product:'整体产品',workflow:'跨模块流程',local:'局部'})[diagnosis.scope]}：${diagnosis.scopeReason}`),section('完整判断',diagnosis.conclusion),section('主线建议',diagnosis.recommendation.action),section('为什么先做这一步',diagnosis.recommendation.reason),section('任务目的是否服务目标',diagnosis.taskAssessment.reason),section('剩余工作',diagnosis.taskAssessment.remaining));
+ if(historicalRound)host.append(section('当时的建议 · 历史',diagnosis.recommendation.action));else renderCurrentAction(host,'一个优先下一步',true);host.append(el('small',stale?'旧建议仅供核查':'分析建议 · 仍需验证'));
+ const detail=diagnosisDetail(diagnosis,stale);detail.hidden=true;host.append(detail);
+ }
+ if(delivery){const latest=el('details',undefined,'overview-latest-delivery');latest.id='latest-delivery';latest.append(el('summary',`最近一轮 · ${delivery.delivery.title}（查看变化与证明）`));renderDelivery(delivery,latest,true);host.append(latest);}else if(progress){progress.classList.add('overview-round-strip');host.append(progress);}
+}
+function diagnosisDetail(diagnosis,stale){
+ const detail=el('details'),summary=el('summary','判断依据、竞争解释与最小验证旅程');detail.append(summary,section(stale?'历史判断 · 待核对':'模型整体判断',diagnosis.conclusion),section('诊断范围',`${({product:'整体产品',workflow:'跨模块流程',local:'局部'})[diagnosis.scope]}：${diagnosis.scopeReason}`),section('完整判断',diagnosis.conclusion),section('主线建议',diagnosis.recommendation.action),section('为什么先做这一步',diagnosis.recommendation.reason),section('任务目的是否服务目标',diagnosis.taskAssessment.reason),section('剩余工作',diagnosis.taskAssessment.remaining));
  for(const j of diagnosis.journeys){detail.append(section(`关键旅程 · ${j.title}`,`期望：${j.expected}；实际：${j.actual}；未知：${j.uncertainty}`));references(j.refs,detail);for(const id of j.targetIds){const node=view.analysis.modules.find(m=>m.id===id);detail.append(button(node?.title||id,()=>select(node?'module':'edge',id),'source-ref'));}}
  detail.append(el('h3','支持依据'));references(diagnosis.evidence,detail);detail.append(el('h3','反证'));references(diagnosis.counterEvidence,detail);
  for(const a of diagnosis.alternatives){detail.append(section('竞争解释',a.explanation),section('如何分辨',a.discriminatingObservation));references(a.refs,detail);}
  for(const o of diagnosis.recommendation.options)detail.append(section(`${o.disposition} · ${o.subject}`,o.reason));
- detail.append(section('最小完整验证旅程',diagnosis.recommendation.verificationJourney),el('p','这是分析建议。选择、接受计划和执行授权分别记录，不会自动修改目标或代码。','muted'));host.append(detail);
+ detail.append(section('最小完整验证旅程',diagnosis.recommendation.verificationJourney),el('p','这是分析建议。选择、接受计划和执行授权分别记录，不会自动修改目标或代码。','muted'));return detail;
 }
 function brief(value,limit=70){const text=String(value).replace(/\s+/g,' ').trim();return text.length>limit?text.slice(0,limit)+'…':text;}
 const executionNames={waiting:'等待开发',running:'开发中',completed:'开发结束',failed:'开发失败',cancelled:'开发已取消',incomplete:'尚未结束','agent-unknown':'主代理已结束，子代理状态未知','agent-failed':'主代理已结束，子代理失败'};
@@ -182,6 +269,7 @@ const mainlineRound=id=>state?.mainline?.rounds?.find(r=>r.roundId===id);
 const conditionNames={passed:'限定通过',unknown:'未知 / 缺证','environment-blocked':'环境阻塞','missing-capability':'能力缺失','behavior-failed':'行为失败'};
 function showVerificationReceipt(id){
  const receipt=state?.closedLoop?.receipts?.find(r=>r.id===id),d=dialog(`独立验证回执 · ${id}`);
+ d.append(button('返回目标核对',showGoalReview,'linklike'));
  if(!receipt){d.append(el('p','该回执原件不在当前可读服务投影中；保留的绑定编号仍可供核查。','muted'));return;}
  d.append(el('p',`目标 G${receipt.binding.goalVersion} · 轮次 ${receipt.binding.roundId} · ${receipt.current?'当前条件绑定':'历史条件绑定，仅供核对'}`),section('来源与条件绑定',`来源 ${receipt.binding.sourceHash}；确认 ${receipt.binding.confirmationId}；确认哈希 ${receipt.binding.confirmationHash}；开发前快照 ${receipt.binding.beforeSnapshotId}`));
  for(const check of receipt.checks){const box=el('section',undefined,'receipt-check');box.append(el('h3',`检查 ${check.id}`),el('p',`执行 ${check.startedAt} → ${check.endedAt}；退出 ${check.exitCode??'未知'}；${check.executionError||'无执行错误记录'}`,'muted'));for(const a of check.assertions)box.append(el('p',`${a.scenarioId} / ${a.criterionId}：${conditionNames[a.status]||a.status}。实际：${a.actual}。依据：${a.evidence}`));const raw=el('details');raw.append(el('summary','原始输出与检查绑定'),el('pre',`配置 ${check.configHash}\nstdout:\n${check.stdout||''}\nstderr:\n${check.stderr||''}`));box.append(raw);d.append(box);}
@@ -190,7 +278,7 @@ function renderRoundComparison(comparison,host){
  if(!comparison)return;const box=el('section',undefined,'alpha-comparison');box.append(el('h4','本轮前后 · 限定证据'),el('p',comparison.summary));
  box.append(el('p',comparison.sourceChanges.length?`实际来源变化：${comparison.sourceChanges.map(c=>`${({added:'新增',deleted:'删除',modified:'修改'})[c.kind]||c.kind} ${c.path}`).join('、')}。来源变化仍须验证用户结果。`:'实际来源变化：未观察到登记文件差异。','muted'));
  for(const c of comparison.criteria){const row=el('div',undefined,'comparison-condition');row.append(el('strong',c.text),el('span',`此前 ${conditionNames[c.before.status]||c.before.status} → 本轮 ${conditionNames[c.after.status]||c.after.status}${c.transition==='resolved'?' · 失败后复测通过':c.transition==='incomparable'?' · 版本不可比':c.transition==='new-evidence'?' · 首次取得限定证据':''}`));if(c.transition==='incomparable')row.append(el('small',c.reason,'muted'));box.append(row);}
- box.append(el('p',`还差：${comparison.unverified.length?comparison.unverified.join('；'):'完整用户旅程和整体目标仍须核对'}。下一步：${comparison.nextReason}`,'muted'));
+ box.append(el('p',`本轮条件范围还差：${comparison.unverified.length?comparison.unverified.join('；'):'完整用户旅程和整体目标仍须核对'}。本轮条件观察：${comparison.nextReason}`,'muted'));
  const details=el('details');details.append(el('summary','核对前后来源与原始回执'),el('p',`目标 G${comparison.goalVersion??'未知'} · 开发前来源 ${comparison.beforeSourceHash} · 本轮观察 ${comparison.afterSourceHash||'未知'} · 当前确认 ${comparison.confirmationId||'未知'}`,'muted'));
  for(const c of comparison.sourceChanges){const row=el('p',`${c.path}：${c.before||'无'} → ${c.after||'无'}`,'muted');details.append(row);if(c.after&&comparison.afterSourceHash===state?.mainline?.sourceHash)details.append(button(`查看当前来源 · ${c.path}`,()=>showSource({path:c.path,sha256:c.after,start:1,end:80}),'linklike'));}
  for(const c of comparison.criteria){details.append(el('p',`${c.text} · 此前确认 ${c.before.confirmationIds.join('、')||'未知'} · ${c.reason}`,'muted'));for(const id of [...new Set([...c.before.history.map(h=>h.receiptId),...c.after.receiptIds])])details.append(button(`查看回执 ${id}`,()=>showVerificationReceipt(id),'linklike'));}
@@ -200,7 +288,8 @@ function openMainline(journey,step,roundId){mainlineReturn=workspace;mainlineRet
 function returnFromMainline(){if(mainlineReturnRound)selectedRound=mainlineReturnRound;switchWorkspace(mainlineReturn);if(mainlineReturn==='agents'&&mainlineReturnRound){const card=[...document.querySelectorAll('.agent-turn')].find(n=>n.dataset.roundId===mainlineReturnRound);card?.focus({preventScroll:true});card?.scrollIntoView?.({block:'nearest'});}}
 function mainlineSummary(round,host){
  if(!round)return;
- const box=el('div',undefined,'mainline-round');box.append(badge(mainlineStatusNames[round.status]||round.status,['failed-blocked','work-failed'].includes(round.status)?'bad':['verified-scoped','partial-verified'].includes(round.status)?'good':round.status==='stale'?'warn':''));
+ if(round.delivery){renderDelivery(round,host,true);const details=el('details');details.append(el('summary','开发关联、条件对照与文件变化'));host.append(details);host=details;}
+ const box=el('div',undefined,'mainline-round');box.append(badge(mainlineStatusNames[round.status]||round.status,['failed-blocked','work-failed'].includes(round.status)?'bad':round.status==='verified-scoped'?'good':['stale','partial-verified'].includes(round.status)?'warn':''));
  if(round.mapping.state==='confirmed'){
   box.append(el('p',`${mainlineKindNames[round.mapping.kind]} · ${round.mapping.journeyTitle}：${round.steps.map(s=>s.title).join('、')}`),el('p',`对应目标：${brief(round.goalClauses.join('；')||'条款未定位',150)}`,'muted'),el('p',`意图：${brief(round.mapping.reason,150)}；预期验证：${brief(round.mapping.expectedVerification,150)}`,'muted'));
   renderRoundComparison(round.comparison,box);
@@ -227,6 +316,7 @@ function mainlineSummary(round,host){
 function renderActivity(){
  const projection=state.activity||{connections:[],turns:[],chronology:[]},sync=$('agent-sync'),turns=$('agent-turns'),events=$('agent-events'),connectionSummary=$('agent-connections-summary');
  sync.replaceChildren();turns.replaceChildren();events.replaceChildren();
+ const manual=currentRoundDelivery();if(manual&&!projection.turns.some(turn=>turn.roundId===manual.roundId)){const card=el('section',undefined,'agent-round-explanation');card.append(el('h3','已登记轮次的说明'),el('p','这轮未连接自动代理活动流；下面是本轮开发说明，不是实时代理轨迹。','muted'));mainlineSummary(manual,card);turns.append(card);}
  if(!projection.connections.length){connectionSummary.textContent='尚未连接开发会话';turns.append(el('p','连接已登记证据根中的单个 Codex 流后，会自动同步新事件。','muted'));return;}
  const failedConnections=projection.connections.filter(c=>c.status==='sync-error').length;
  connectionSummary.textContent=failedConnections?`连接状态与来源 · ${failedConnections} 个同步失败`:`连接状态与来源 · ${projection.connections.length} 个已登记流`;
@@ -296,9 +386,14 @@ function mainlineMappingForm(roundId){
  const reason=field(form,'关联理由或基础设施要排除的阻碍',el('textarea'));reason.required=true;reason.value=round.mapping.reason||'';
  const verification=field(form,'预期用什么条件验证收益',el('textarea'));verification.required=true;verification.value=round.mapping.expectedVerification||'';
  const author=field(form,'核对人',el('input'));author.required=true;
+ const deliveryToggle=field(form,'本轮用户结果说明（开发说明不等于验证通过）',selectOptions({no:'不补充说明',yes:'补充或修订说明'},round.delivery?'yes':'no'));
+ const deliveryFields=el('fieldset');deliveryFields.hidden=deliveryToggle.value!=='yes';deliveryFields.append(el('legend','让读者先看懂这轮，再核对依据'));form.append(deliveryFields);
+ const inputs={};for(const [name,label]of Object.entries({title:'一句话说明本轮改变',goalConnection:'这轮服务哪项用户目标',before:'之前用户遇到什么问题',after:'现在用户能做什么',evidenceSummary:'实际检查了什么（只写观察到的结果）',remaining:'还差什么，影响用户什么',nextAction:'下一步只做哪件事',nextCheck:'怎样判断下一步有用'})){const input=field(deliveryFields,label,el('textarea'));input.dataset.deliveryField=name;input.maxLength=name==='title'?100:600;input.value=round.delivery?.[name]||'';input.required=deliveryToggle.value==='yes';inputs[name]=input;}
+ const proofIds=[];for(const receipt of state.closedLoop?.receipts||[]){if(!receipt.current||receipt.binding.roundId!==roundId||receipt.binding.sourceHash!==progress.sourceHash||receipt.binding.goalHash!==goal.hash)continue;const label=el('label',undefined,'agent-clause'),input=el('input');input.type='checkbox';input.value=receipt.id;input.checked=round.delivery?.receiptIds.includes(receipt.id)||false;proofIds.push(input);label.append(input,document.createTextNode(`关联独立检查：${receipt.checks.map(c=>c.id).join('、')}`));deliveryFields.append(label);}
+ deliveryToggle.onchange=()=>{deliveryFields.hidden=deliveryToggle.value!=='yes';for(const input of Object.values(inputs))input.required=deliveryToggle.value==='yes';};
  const save=el('button','确认关联并保存历史','primary');save.type='submit';form.append(save);
  const history=progress.annotations.filter(a=>a.roundId===roundId);if(history.length){const past=el('details');past.append(el('summary',`此前关联 · ${history.length} 版`));for(const a of history)past.append(el('p',`${a.createdAt} · ${a.author} · ${mainlineKindNames[a.kind]} · ${a.reason}`));d.append(past);}
- form.onsubmit=async event=>{event.preventDefault();const stepIds=checks.filter(c=>c.checked).map(c=>c.value);if(!journey.value||!stepIds.length){notice('请选择产品旅程和至少一个实际步骤。');return;}if(historical&&!historicalChoice.checked){notice('请先确认这只是历史版本的开发意图，不代表产品进展。');return;}try{await api(endpoint('mainline-annotate'),{expectedRevision:progress.revision,idempotencyKey:`mainline-${key()}`,roundId,goalHash:goal.hash,viewAttemptId:progress.referenceViewAttemptId,sourceHash:progress.referenceSourceHash,journeyId:journey.value,stepIds,kind:kind.value,reason:reason.value,expectedVerification:verification.value,previousId:history.at(-1)?.id||null,author:author.value,...(historical?{interpretationMode:'historical-intent',observedSourceHash:observed.after.sourceHash,expectedCurrentSourceHash:progress.sourceHash}:{})});$('dialog').close();await refresh(true);}catch(e){notice(e.message);}};
+ form.onsubmit=async event=>{event.preventDefault();const stepIds=checks.filter(c=>c.checked).map(c=>c.value);if(!journey.value||!stepIds.length){notice('请选择产品旅程和至少一个实际步骤。');return;}if(historical&&!historicalChoice.checked){notice('请先确认这只是历史版本的开发意图，不代表产品进展。');return;}const delivery=deliveryToggle.value==='yes'?{...Object.fromEntries(Object.entries(inputs).map(([name,input])=>[name,input.value])),receiptIds:proofIds.filter(input=>input.checked).map(input=>input.value),observationIds:round.delivery?.sourceCurrent?round.delivery.observationIds||[]:[]}:undefined;try{await api(endpoint('mainline-annotate'),{expectedRevision:progress.revision,idempotencyKey:`mainline-${key()}`,roundId,goalHash:goal.hash,viewAttemptId:progress.referenceViewAttemptId,sourceHash:progress.referenceSourceHash,journeyId:journey.value,stepIds,kind:kind.value,reason:reason.value,expectedVerification:verification.value,previousId:history.at(-1)?.id||null,author:author.value,...(delivery?{delivery}:{}),...(historical?{interpretationMode:'historical-intent',observedSourceHash:observed.after.sourceHash,expectedCurrentSourceHash:progress.sourceHash}:{})});$('dialog').close();await refresh(true);}catch(e){notice(e.message);}};
 }
 function renderRounds(){
  const host=$('round-detail'),timeline=$('round-timeline'),sync=$('round-sync');if(!host)return;const evidenceOpen=host.querySelector('.round-evidence')?.open||false,targetsOpen=host.dataset.roundId===selectedRound&&host.querySelector('.round-targets')?.open||false;host.replaceChildren();timeline.replaceChildren();sync.replaceChildren();
@@ -313,11 +408,11 @@ function renderRounds(){
  const r=rounds.find(r=>r.id===selectedRound),registration=projection.registrations.find(x=>x.id===r.attempts.at(-1)?.registrationId);
  sync.append(el('small',syncNames[registration?.status]||'同步状态未知'));
  host.dataset.roundId=r.id;
- if(r.delayedRecovery)host.append(el('p',`${registration?.status==='sync-error'?'恢复仍有错误':registration?.recoveryThroughOffset!=null?'正在显式补读事件':registration?.syncHistory?.some(h=>h.kind==='recovered')?'事件接收已恢复':'恢复尚未完成'}；${r.sourceCoverage}`,'round-recovery'));
+ if(r.delayedRecovery)host.append(el('p',`${({error:'接收连接仍有错误',reading:'正在显式补读事件',recovered:'事件接收已恢复',unknown:'恢复接收状态未知'})[r.recoveryStatus]||'恢复接收状态未知'}；${r.sourceCoverage}`,'round-recovery'));
  const verified=r.stale||r.sourceStale||r.pending?.length||r.goalHash!==currentGoal()?.hash?[]:r.verified;
  const conditionChecks=r.conditionVerified||[],currentConditions=r.proofEligible===false?[]:r.conditionProgress?.criteria||[];
  const evidence=conditionChecks.length?`${currentConditions.filter(c=>c.status==='passed').length} 项条件通过；${currentConditions.filter(c=>c.status!=='passed').length} 项失败或未知${verified.some(e=>e.result==='failed')?'；旧范围验证仍失败':''}，整体待核对`:verified.some(e=>e.result==='failed')?'限定验证失败':verified.some(e=>e.result==='passed')?'已有限定验证，整体待核对':'尚无合格行为验证';
- host.append(el('h2',brief(r.purpose,80)),el('p',`${executionNames[r.status]||'状态未知'} · ${r.after?`${r.deltas.length} 项文件变化（截至最近观察）`:'尚无本轮源码观察，变化未知'} · ${evidence}`,'round-summary'));
+ host.append(el('h2',brief(mainlineRound(r.id)?.delivery?.title||r.purpose,80)),el('p',`${executionNames[r.status]||'状态未知'} · ${r.after?`${r.deltas.length} 项文件变化（截至最近观察）`:'尚无本轮源码观察，变化未知'} · ${evidence}`,'round-summary'));
  mainlineSummary(mainlineRound(r.id),host);
  const verification=el('div',undefined,'round-verification');verification.setAttribute('aria-label','本轮限定验证');
  const namedView=[...(state.roundViews||[]),...(state.views||[])].find(v=>v.attemptId===r.viewAttemptId&&v.source.hash===r.after?.sourceHash&&v.goal?.hash===r.goalHash);
@@ -329,7 +424,7 @@ function renderRounds(){
  for(const c of r.conditionProgress?.criteria||[])verification.append(section(`验收条件 · ${c.text}`,`${r.conditionProgress.status==='stale'?'绑定已过时 / 待补齐，历史结果：':''}${({passed:'通过','environment-blocked':'环境阻塞','missing-capability':'明确能力缺失','behavior-failed':'行为失败',unknown:'未知 / 缺证'})[c.status]||c.status}${c.recovered?' · 复测恢复':''} · ${c.evidence.map(e=>e.receiptId).join(', ')||'无条件回执'}`));
  verification.append(section('剩余条件与当前阻碍',r.remaining));
  for(const g of r.conditionProgress?.gapProgress||[])verification.append(section(`差距 ${g.gapId}`,`${g.verified&&r.proofEligible!==false?'对应确认条件已验证':'仍需条件验证'}；分析报告状态 ${g.reported}`));
- host.append(verification);const digest=el('div',undefined,'round-digest');digest.append(section('为什么做',brief(r.purpose,180)),section('实际变化',r.after?`${r.deltas.length} 项文件变化；${brief(r.reported,160)}`:'尚无本轮源码观察'),section('证实了什么',evidence),section('优先下一步',brief(r.next,180)));host.append(digest);
+ if(mainlineRound(r.id)?.delivery){const details=el('details');details.append(el('summary','逐项技术检查结果'),verification);host.append(details);}else{host.append(verification);const digest=el('div',undefined,'round-digest');digest.append(section('为什么做',brief(r.purpose,180)),section('实际变化',r.after?`${r.deltas.length} 项文件变化；${brief(r.reported,160)}`:'尚无本轮源码观察'),section('证实了什么',evidence));renderCurrentAction(digest,'优先下一步');host.append(digest);}
  host.append(el('p',`最近源码观察：${r.lastSourceObservedAt||'尚未观察'}；检查点比较不证明某条命令造成变化。`,'muted'));
  if(r.stale)host.append(el('p','目标已改变，需核对本轮目的。','muted'));
  const job=state.roundAnalysis?.jobs?.filter(j=>j.roundIds.includes(r.id)).at(-1);
@@ -346,7 +441,7 @@ function renderRounds(){
  detail.append(section('开发前后来源',`${r.before.sourceHash} → ${r.after?.sourceHash||'尚未捕获'}；最近源码观察 ${r.lastSourceObservedAt||'未知'}；${r.mode==='historical-replay'?'历史回放不会自动补造当时源码。':''}读取范围：${r.before.coverage.join('、')}`));
  const changes=el('div');changes.append(el('h3',r.after?`实际文件变化 · ${r.deltas.length} 项`:'实际文件变化 · 尚无本轮源码观察'));
  for(const f of r.deltas){const row=el('div',undefined,'delta-row');row.append(el('span',`${({added:'新增',deleted:'删除',modified:'修改'})[f.kind]} · ${f.path}`),el('small',`${f.before||'无'} → ${f.after||'无'}`));if(f.after)row.append(button('查看当前来源',()=>showSource({path:f.path,sha256:f.after,start:1,end:80}),'source-ref'));changes.append(row);}detail.append(changes);
- detail.append(section('模块与连接影响',r.mapping),section('剩余工作',r.remaining),section('下一轮优先动作',r.next));
+ detail.append(section('模块与连接影响',r.mapping),section('剩余工作',r.remaining),section('本轮保存的判断（历史参考）',r.next));
  if(r.deferredBenefit)detail.append(section('基础设施延期收益',`阻碍：${r.deferredBenefit.blocker}；预期收益：${r.deferredBenefit.payoff}；验证里程碑：${r.deferredBenefit.milestone}；复查条件：${r.deferredBenefit.revisitWhen}。收益尚未计入。`));
  const p=projection.policy;detail.append(section('连续进展观察规则',`${p.signal}。窗口 ${p.window} 轮，无验证阈值 ${p.noProofThreshold}，新增字节调查阈值 ${p.addedBytesThreshold}；覆盖${p.coverageComplete?'完整':'不足'}。规则 ${p.version}。`));
  detail.append(section('轮次身份',`${r.id} · 任务 ${r.taskId} · 目标 ${r.goalHash}`),section('尝试与恢复',r.attempts.map(a=>`${a.id} · ${executionNames[a.outcome]||'尚未结束'} · ${syncNames[a.status]}${a.issue?' · '+a.issue:''}`)));
@@ -355,8 +450,8 @@ function renderRounds(){
  host.append(detail);
 }
 
-function showOverview(){const d=dialog('目标原文与判断依据');d.append(section('整体目标原文',currentGoal()?.originalText),section('程序理解',view?.analysis.purpose),button('目标条款与模块映射',()=>{$('dialog').close();document.querySelector('.goal-evidence').open=true;}));const detail=$('overall-diagnosis').querySelector('details');if(detail){const copy=detail.cloneNode(true);copy.hidden=false;copy.open=true;d.append(copy);const originals=[...detail.querySelectorAll('button')];copy.querySelectorAll('button').forEach((b,i)=>b.onclick=()=>originals[i].click());}else d.append(section('当前判断',$('overall-diagnosis').textContent));}
-for(const name of ['map','rounds','agents']){const tab=$('tab-'+name);tab.onclick=()=>switchWorkspace(name);tab.onkeydown=event=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(event.key)){event.preventDefault();const tabs=['map','rounds','agents'],i=tabs.indexOf(name),next=event.key==='Home'?'map':event.key==='End'?'agents':tabs[(i+(event.key==='ArrowRight'?1:tabs.length-1))%tabs.length];switchWorkspace(next);$('tab-'+next).focus();}};}
+function showOverview(){const d=dialog('目标原文与判断依据');d.append(section('整体目标原文',currentGoal()?.originalText),section('程序理解',view?.analysis.purpose),button('目标条款与模块映射',showGoalReview));const diagnosis=view?.analysis.diagnosis;if(diagnosis){const stale=!!historicalRound||state.diagnosisStatus==='stale'||view.goal?.hash!==currentGoal()?.hash||view.source.hash!==state.closedLoop?.sourceHash,detail=diagnosisDetail(diagnosis,stale);detail.open=true;d.append(detail);}else d.append(section('当前判断','尚无整体诊断。请先核对目标与来源。'));}
+for(const name of ['goals','map','rounds','agents']){const tab=$('tab-'+name);tab.onclick=()=>switchWorkspace(name);tab.onkeydown=event=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(event.key)){event.preventDefault();const tabs=['goals','map','rounds','agents'],i=tabs.indexOf(name),next=event.key==='Home'?'goals':event.key==='End'?'agents':tabs[(i+(event.key==='ArrowRight'?1:tabs.length-1))%tabs.length];switchWorkspace(next);$('tab-'+next).focus();}};}
 $('graph-wrap').onkeydown=event=>{if(event.target!==$('graph-wrap'))return;const moves={ArrowLeft:[70,0],ArrowRight:[-70,0],ArrowUp:[0,70],ArrowDown:[0,-70]};if(moves[event.key]){event.preventDefault();pan.x+=moves[event.key][0];pan.y+=moves[event.key][1];applyPan();savePref();}else if(event.key==='Home'){event.preventDefault();resetMap();}else if(['+','-','='].includes(event.key)){event.preventDefault();$('zoom-'+(event.key==='-'?'out':'in')).click();}};
 
 function resetMap(){selection=null;$('search').value='';document.body.classList.remove('inspector-open');renderGraph();renderGaps();fit();savePref();}
@@ -367,8 +462,8 @@ const flowNames={sequence:'先后',branch:'条件分支',feedback:'反馈'};
 const groundingNames={'source-supported':'源码支持 · 未验证运行',unknown:'未知',proposed:'期望 / 拟需'};
 function relationshipLabel(e){return `${relationshipNames[e.kind]||'未分类'} · ${groundingNames[e.certainty]||'历史关系，含义未核查'}`;}
 function setModelView(name){modelView=name;$('mainline-panel').hidden=name!=='mainline';$('map-panel').hidden=name!=='implementation';for(const key of ['mainline','implementation'])$('view-'+key).setAttribute('aria-pressed',String(key===name));if(name==='implementation')renderGraph();}
-$('view-mainline').onclick=()=>{setModelView('mainline');document.body.classList.remove('inspector-open');selection=null;renderWorkflow();};
-$('view-implementation').onclick=()=>setModelView('implementation');
+$('view-mainline').onclick=()=>{if(workspace!=='map')switchWorkspace('map');setModelView('mainline');document.body.classList.remove('inspector-open');selection=null;renderWorkflow();};
+$('view-implementation').onclick=()=>{if(workspace!=='map')switchWorkspace('map');setModelView('implementation');};
 function renderProposed(){const host=$('proposed-capabilities');host.replaceChildren();const nodes=view?.analysis.modules.filter(m=>m.kind==='proposed')||[];if(!nodes.length)return;const box=el('details');box.append(el('summary',`拟需能力 · ${nodes.length}（未定位，不属于已有实现图）`));for(const n of nodes)box.append(button(n.title,()=>select('module',n.id),'text-item'));host.append(box);}
 function workflowCoordinates(flow){
  // SCC condensation places cycles at one depth; feedback does not force forward rank.
@@ -399,7 +494,7 @@ function workflowLayout(flow){
 }
 function renderWorkflow(){
  const host=$('workflow-content');host.replaceChildren();const workflow=view?.analysis.workflow;
- const heading=el('div',undefined,'workflow-heading');heading.append(el('h2','产品主线'));host.append(heading);
+ const heading=el('div',undefined,'workflow-heading');heading.append(el('h2','产品主线'));const back=mainlineReturn!=='map'?button(({goals:'返回整体目标',rounds:'返回开发轮次',agents:'返回实时开发'})[mainlineReturn]||'返回整体目标',returnFromMainline,'linklike'):null;if(back)heading.append(back);host.append(heading);
  if(!workflow){host.append(el('p','未建立工作主线：当前分析只有实现关系，不能据模块排列推定工作顺序。'),button('检查实现关系',()=>setModelView('implementation')));return;}
  if(!workflow.journeys.some(j=>j.id===journeyId))journeyId=workflow.journeys[0]?.id;
  const choice=el('select');choice.id='workflow-journey';choice.setAttribute('aria-label','选择目标旅程');for(const j of workflow.journeys){const option=el('option',j.title);option.value=j.id;choice.append(option);}choice.value=journeyId||'';choice.onchange=()=>{journeyId=choice.value;renderWorkflow();$('workflow-journey').focus();};heading.append(choice);
@@ -408,7 +503,7 @@ function renderWorkflow(){
  const referenceVisible=!historicalRound&&state.mainline?.referenceViewAttemptId===view?.attemptId&&state.mainline?.referenceSourceHash===view?.source.hash;
  const journeyProgress=referenceVisible?state.mainline.journeys.find(j=>j.id===journeyId):null;
  if(referenceVisible&&state.mainline.status==='stale-source')host.append(el('p',`这是保存的主线分析（来源 ${view.source.hash.slice(0,12)}）；当前源码 ${state.mainline.sourceHash.slice(0,12)} 已变化。步骤和关联只说明开发意图，来源待重新分析，旧条件通过不能算当前产品进展。`,'mainline-intent-note'));
- if(journeyProgress){const feed=el('section',undefined,'mainline-feed');feed.append(el('h3',state.mainline.status==='current'?'本旅程开发进展':'本旅程保存的开发意图 · 来源待复查'));if(!journeyProgress.feed.length){feed.append(el('p','尚无已确认关联的开发轮次；现有活动不能自动计为产品进展。','muted'));const candidate=state.mainline.rounds.find(r=>r.mapping.state==='unknown'&&r.candidates.some(c=>c.journeyId===journeyId));if(candidate)feed.append(button('核对候选轮次关联',()=>mainlineMappingForm(candidate.roundId),'linklike'));}else for(const item of journeyProgress.feed){const row=el('div',undefined,'mainline-feed-row');row.append(badge(mainlineStatusNames[item.status]||item.status),el('span',`${brief(item.purpose,52)} · ${item.stepTitles.join('、')} · ${brief(item.reason||'开发意图未说明',100)} · 预期验证：${brief(item.nextVerification,100)}`),button('查看轮次',()=>{selectedRound=item.roundId;switchWorkspace('rounds');},'linklike'));feed.append(row);renderRoundComparison(item.comparison,feed);}feed.append(el('p',`下一验证：${brief(journeyProgress.nextVerification,180)}`,'mainline-next'));if(mainlineReturn!=='map')feed.append(button(mainlineReturn==='agents'?'返回实时开发':'返回开发轮次',returnFromMainline,'linklike'));host.append(feed);}
+ if(journeyProgress){const feed=el('section',undefined,'mainline-feed');if(back)feed.append(back);feed.append(el('h3',state.mainline.status==='current'?'本旅程开发进展':'本旅程保存的开发意图 · 来源待复查'));if(!journeyProgress.feed.length){feed.append(el('p','尚无已确认关联的开发轮次；现有活动不能自动计为产品进展。','muted'));const candidate=state.mainline.rounds.find(r=>r.mapping.state==='unknown'&&r.candidates.some(c=>c.journeyId===journeyId));if(candidate)feed.append(button('核对候选轮次关联',()=>mainlineMappingForm(candidate.roundId),'linklike'));}else for(const item of journeyProgress.feed){const row=el('div',undefined,'mainline-feed-row');row.append(badge(mainlineStatusNames[item.status]||item.status),el('span',item.delivery?.sourceCurrent?`${item.delivery.title} · ${item.delivery.after}`:`${brief(item.purpose,52)} · ${item.stepTitles.join('、')} · ${brief(item.reason||'开发意图未说明',100)} · 预期验证：${brief(item.nextVerification,100)}`),button('查看轮次',()=>{selectedRound=item.roundId;switchWorkspace('rounds');},'linklike'));feed.append(row);if(item.delivery){const details=el('details');details.append(el('summary','展开本轮条件对照与来源变化'));renderRoundComparison(item.comparison,details);feed.append(details);}else renderRoundComparison(item.comparison,feed);}const action=currentAction();feed.append(el('p',action?`当前优先下一步：${action.text}`:`当时预期验证：${journeyProgress.nextVerification}`,'mainline-next'));host.append(feed);}
  if(workflow.status==='unknown')host.append(el('p','未建立工作主线；下面仅为已定位片段和待核对步骤。','conflict'));
  const cue=el('p','实线：源码支持，未验证运行；虚线：未知。＊有条件，选择箭头可读。超出画布可横向 / 纵向滚动。','workflow-cue');cue.id='workflow-cue';host.append(cue);
  if(journey){const flow=journey.observed;
@@ -463,6 +558,55 @@ function runtimeCoverage(targetIds=[],clauseIds=[]){
  return {targetIds,clauseIds,criteria,status,label:({unavailable:'运行：当前证据不适用',mixed:'运行：通过与失败并存',failed:'运行：条件失败 / 阻塞',passed:'运行：映射条件通过',partial:'运行：部分通过',unknown:'运行：未知 / 未覆盖'})[status]};
 }
 function targetClauses(id){return [...new Set((view?.analysis.alignments||[]).filter(a=>a.targetIds.includes(id)).flatMap(a=>a.clauseIds))];}
+function clauseTitle(clause){const first=clause.text.split(/[：:\n]/,1)[0].trim();return first&&first.length<=42?first:brief(clause.text,42);}
+function businessRows(){
+ const goal=currentGoal(),loop=state.closedLoop,analysis=view?.analysis;
+ const current=!historicalRound&&!!goal&&view?.goal?.hash===goal.hash&&view.source.hash===loop?.sourceHash&&state.diagnosisStatus!=='stale';
+ const evidenceCurrent=current&&loop?.confirmationMapping?.applicable;
+ return (goal?.clauses||[]).map(clause=>{
+  const journeys=(analysis?.workflow?.journeys||[]).filter(j=>j.clauseIds.includes(clause.id)||j.observed.steps.some(s=>s.clauseIds.includes(clause.id)));
+  const alignments=(analysis?.alignments||[]).filter(a=>a.clauseIds.includes(clause.id));
+  const ids=new Set([...alignments.flatMap(a=>a.targetIds),...journeys.flatMap(j=>j.observed.steps.filter(s=>s.clauseIds.includes(clause.id)).flatMap(s=>s.targetIds))]);
+  const modules=(analysis?.modules||[]).filter(m=>ids.has(m.id));
+  const criteria=evidenceCurrent?(loop.criteria||[]).filter(c=>c.clauseIds.includes(clause.id)):[];
+  const review=state.goalReviews?.clauses?.find(r=>r.clauseId===clause.id);
+  const failed=criteria.find(c=>!['passed','unknown'].includes(c.status));
+  const status=!current?'待更新理解':review?.status==='current'&&review.decision==='mismatch'?'目标报告不符':failed?conditionNames[failed.status]:review?.status==='current'&&review.decision==='matches'?'核对者报告相符':'业务效果待核对';
+  return {clause,current,evidenceCurrent,journeys,modules,criteria,review,status,gaps:(view?.gaps||[]).filter(g=>g.lifecycle==='open'&&g.clauseIds.includes(clause.id)).sort((a,b)=>a.rank-b.rank),rounds:(state.rounds?.rounds||[]).filter(r=>r.goalHash===goal.hash&&(r.clauseIds||[]).includes(clause.id))};
+ });
+}
+function renderBusiness(){
+ const host=$('business-content');if(!host||workspace!=='goals')return;host.replaceChildren();
+ const goal=currentGoal(),rows=businessRows(),analysis=view?.analysis,current=rows.length?rows.every(r=>r.current):false;
+ const intro=el('section',undefined,'business-intro');intro.append(el('span','先看整体，再决定开发什么','eyebrow'),el('h1','整个项目要帮你完成什么'),el('p',analysis?.purpose||'先读取已登记的代码，形成可核对的用途、模块与关系。'));
+ const original=el('details');original.append(el('summary',goal?`你的完整目标原文 · G${goal.version}`:'尚未保存人的目标'),el('p',goal?.originalText||'代码用途由程序解释，你希望的结果由你填写。两者分别保存。'));intro.append(original);
+ intro.append(button(goal?'核对 / 修改整体目标':'填写我希望实现的目标',wholeForm),button('查看读取范围与来源',showScope));host.append(intro);
+ const path=el('nav',undefined,'business-path');path.setAttribute('aria-label','工作台使用路径');
+ const passed=(state.closedLoop?.criteria||[]).filter(c=>c.status==='passed'&&c.mapping==='mapped').length;
+ const stages=[['理解代码',view?current?'当前来源已分析':'有旧分析，当前材料待更新':'尚未取得分析',()=>submit('analyze',{}).catch(()=>{})],['核对目标',goal?`${rows.length} 项目标；逐项对照流程和模块`:'先保存你的期望',()=>goal?showGoalReview():wholeForm()],['找主要差距',current?`整体判断与 ${view.gaps.filter(g=>g.lifecycle==='open').length} 项待办`:'当前差距待重新判断',()=>current?showOverview():submit('analyze',{}).catch(()=>{})],['开发并记录',`${state.rounds?.rounds?.filter(r=>r.goalHash===goal?.hash).length||0} 轮绑定当前目标`,()=>switchWorkspace('rounds')],['验证并接续',current&&state.closedLoop?.confirmationMapping?.applicable?`${passed} 项限定条件有通过证据`:'当前结果尚需分析 / 核对',()=>showVerification()]];
+ for(const [i,[title,status,run]] of stages.entries()){const b=button('',run);b.append(el('span',String(i+1),'business-step-number'),el('strong',title),el('small',status));b.dataset.businessStage=String(i+1);path.append(b);}host.append(path);
+ if(!goal){host.append(el('p','可以先读代码，也可以先输入目标；取得解释后，再核对是否符合你的需要。','business-empty'));return;}
+ host.append(el('p',current?'下面把每项目标、已有实现、开发记录和证明放在一起。限定检查通过与实际使用者认为符合目标分别显示。':'代码或反馈已经变化。下面保留原目标和候选关联，旧版通过不计为当前结果。先完成当前来源分析，再核对映射。',current?'business-help':'business-help conflict'));
+ const grid=el('div',undefined,'business-grid'),goals=el('section',undefined,'business-goals');goals.setAttribute('aria-label','完整业务目标与进度');
+ for(const row of rows){
+  const card=el('article',undefined,'business-goal');card.dataset.businessClauseId=row.clause.id;card.dataset.sourceCurrent=String(row.current);
+  const heading=el('div',undefined,'business-goal-heading');heading.append(el('h2',clauseTitle(row.clause)),badge(row.status,row.status==='目标报告不符'?'bad':''));card.append(heading);
+  const text=el('details');text.append(el('summary','我希望得到的完整结果'),el('p',row.clause.text));card.append(text);
+  const facts=el('div',undefined,'business-facts');facts.append(section('如何实现',row.modules.filter(m=>m.kind==='discovered').length?`${row.journeys.length} 条相关流程 · ${row.modules.filter(m=>m.kind==='discovered').length} 个来源支持模块${row.modules.some(m=>m.kind==='proposed')?'；另有拟需能力':''}${row.current?'':'（上版候选）'}`:'尚未定位实现，不能据此断言功能不存在'),section('当前证明',row.criteria.length?`${row.criteria.filter(c=>c.status==='passed'&&c.mapping==='mapped').length}/${row.criteria.length} 项限定条件通过；完整业务含义另行核对`:'没有当前适用的条件证明'),section('开发进展',row.rounds.length?`${row.rounds.length} 轮登记目的与此目标有关；查看前后变化和独立结果`:'没有明确绑定这项目标的开发轮次'));card.append(facts);
+  const gap=row.current?row.gaps[0]:null;
+  card.append(section('这项目标还差在哪里',!row.current?'先更新整体判断；旧差距与旧证据保留为历史':row.status==='目标报告不符'?row.review.originalText:gap?gap.expected:'未列出差距不代表目标完成，仍需对照实际用户结果'));
+  const controls=el('div',undefined,'business-goal-controls');controls.append(button('核对目标与模块',()=>showGoalReview(row.clause.id),'primary'));
+  for(const journey of row.journeys)controls.append(button(`看流程 · ${journey.title}`,()=>openMainline(journey.id),'linklike'));
+  if(row.rounds.length)controls.append(button('看相关开发',()=>{selectedRound=row.rounds.at(-1).id;switchWorkspace('rounds');}));
+  if(gap)controls.append(button('定位这项差距',()=>select('gap',gap.id)));card.append(controls);goals.append(card);
+ }
+ const next=el('aside',undefined,'business-next');next.setAttribute('aria-label','整体优先行动');next.append(el('h2','先推进哪一步'));renderCurrentAction(next);
+ if(current){next.append(section('整体还是局部',analysis?.diagnosis?`${({product:'整体产品',workflow:'跨模块流程',local:'局部'})[analysis.diagnosis.scope]}：${analysis.diagnosis.scopeReason}`:'没有适用的整体判断，不能由模块数量推断主线失败'));
+  const gaps=(view?.gaps||[]).filter(g=>g.lifecycle==='open').sort((a,b)=>a.rank-b.rank);for(const gap of gaps.slice(0,3))next.append(button(`${gap.rank}. ${gap.expected}`,()=>select('gap',gap.id),'business-gap'));}
+ const latest=(state.rounds?.rounds||[]).filter(r=>r.goalHash===goal.hash).at(-1),progress=mainlineRound(latest?.id);
+ if(latest){const round=el('section',undefined,'business-latest');round.append(el('h3','最近一轮对整体目标做了什么'),el('p',progress?.delivery?.sourceCurrent?progress.delivery.after:latest.purpose||'尚未登记目的'),el('small',`${executionNames[latest.status]||'状态未知'}；${mainlineStatusNames[progress?.status]||'产品主线关联待核对'}`),button('查看本轮变化与证明',()=>{selectedRound=latest.id;switchWorkspace('rounds');}));next.append(round);}
+ grid.append(goals,next);host.append(grid);
+}
 function runtimeBadge(host,targetIds,clauseIds,x,y,compact=false){
  const coverage=runtimeCoverage(targetIds,clauseIds),open=e=>{e?.stopPropagation();showVerification(coverage);};
  if(x!==undefined){const g=svgEl('g',{class:'runtime-badge',tabindex:0,role:'button','data-runtime-status':coverage.status,'data-runtime-targets':targetIds.join(','),'aria-label':coverage.label});
@@ -471,11 +615,136 @@ function runtimeBadge(host,targetIds,clauseIds,x,y,compact=false){
 }
 
 // Scenario drafts stay in the open dialog while background polling updates state.
+function showGoalReview(initialClauseId=null){
+ const host=dialog('目标与实现逐项核对'),goal=currentGoal(),analysis=view?.analysis,loop=state.closedLoop;
+ const applicable=!historicalRound&&view?.goal?.hash===goal?.hash&&state.diagnosisStatus!=='stale'&&loop?.sourceHash===view?.source.hash&&loop?.confirmationMapping?.applicable;
+ const original=el('details');original.append(el('summary',`人的完整目标原文 · G${goal?.version??'未知'}`),section('你想实现的整体目标',goal?.originalText||'尚未提供目标'));host.append(original,section('代码目前被理解为',analysis?.purpose||'尚未分析代码'));
+ host.append(el('p',`核对快照：目标 G${goal?.version??'未知'} · 来源 ${view?.source.hash?.slice(0,12)||'未分析'} · revision ${state.generation}。核对期间新分析或反馈可能改变依据，请刷新此核对页。`,'muted'),button('刷新此核对页',showGoalReview,'linklike'));
+ references(analysis?.purposeRefs||[],host);
+ host.append(el('p','先对照目标含义，再看流程、实现和条件证据。有映射或限定通过不等于完整目标达成；不符时修改目标、条件或模块期望。','muted'));
+ if(!goal){host.append(button('输入整体目标',()=>wholeForm()));return;}
+ if(!applicable)host.append(el('p','当前分析或条件证据不适用；以下解释仅供核查，不沿用通过结论。','conflict'));
+ const navigate=fn=>()=>{$('dialog').close();editing=false;fn();};
+ for(const clause of goal.clauses){
+  const card=el('details',undefined,'goal-review-card');card.dataset.clauseId=clause.id;
+  card.append(el('summary',brief(clause.text,85)),el('h3',clause.text));card.open=typeof initialClauseId==='string'&&initialClauseId===clause.id;
+  const journeys=(analysis?.workflow?.journeys||[]).filter(j=>j.clauseIds.includes(clause.id)||[...j.observed.steps,...j.desired.steps].some(s=>s.clauseIds.includes(clause.id)));
+  const alignments=(analysis?.alignments||[]).filter(a=>a.clauseIds.includes(clause.id));
+  const targetIds=new Set([...alignments.flatMap(a=>a.targetIds),...journeys.flatMap(j=>j.observed.steps.filter(s=>s.clauseIds.includes(clause.id)).flatMap(s=>s.targetIds))]);
+  const modules=(analysis?.modules||[]).filter(m=>targetIds.has(m.id));
+  const criteria=applicable?(loop.criteria||[]).filter(c=>c.clauseIds.includes(clause.id)):[];
+  card.append(el('p',`${criteria.filter(c=>c.status==='passed').length}/${criteria.length} 项当前映射条件有通过证据 · 完整目标含义待核对`,'goal-review-proof'));
+  const report=!historicalRound?state.goalReviews?.clauses?.find(r=>r.clauseId===clause.id):null;
+  const reported=report?.status==='current'?({matches:'核对者报告相符（不等于整体验收）',mismatch:'核对者报告不符（需验证反例）',unknown:'核对者还不能判断'})[report.decision]:report?.status==='stale'?'旧核对意见 · 新版本需复核':'尚未记录目标核对意见';
+  const reviewBox=section('目标含义核对',reported);reviewBox.classList.add('goal-review-verdict');
+  if(report?.feedbackId){const prior=el('details');prior.append(el('summary',`查看${report.status==='stale'?'旧版':'已保存'}意见与后续观察`),section('核对者与范围',`${report.author}；${report.provenance}`),section('原话 / 反例',report.originalText),section('下一观察',report.nextObservation));reviewBox.append(prior);}
+  if(!historicalRound&&view?.goal?.hash===goal.hash&&loop?.sourceHash===view.source.hash)reviewBox.append(button('记录这项目标的核对结果',()=>goalReviewForm(clause,report),'primary'));
+  else reviewBox.append(el('p','当前为旧目标、旧来源或历史图，请回到当前分析再核对。','muted'));
+  if(currentReadingBasis())reviewBox.append(button('沿本轮逐步核对',()=>showReadingReview(clause)));
+  card.append(reviewBox);
+  card.append(el('h4','关联的产品流程'));
+  if(!journeys.length)card.append(el('p','尚未定位对应产品流程；需要核对，不代表功能不存在。','muted'));
+  for(const journey of journeys){card.append(button(journey.title,navigate(()=>openMainline(journey.id)), 'text-item'));const explanation=el('details');explanation.append(el('summary','展开程序对这些步骤的解释'));for(const step of journey.observed.steps.filter(s=>s.clauseIds.includes(clause.id)))explanation.append(section(step.title,`目的：${step.purpose}；当前：${step.actual}；未知：${step.uncertainty}`));card.append(explanation);}
+  card.append(el('h4','实现职责与人的期望'));
+  if(!modules.length)card.append(el('p','尚未定位实现模块；保留未知。','muted'));
+  for(const module of modules){const item=el('details');item.append(el('summary',module.title),section(module.kind==='proposed'?'拟需职责（尚未定位已有实现）':'代码职责',module.responsibility),section('输入 / 输出',`${module.inputs.join('；')||'未说明'} → ${module.outputs.join('；')||'未说明'}`));const expectation=(state.expectations||[]).find(e=>e.targetId===module.id&&e.clauseIds.includes(clause.id));item.append(section('已保存的模块期望',expectation?.responsibility||'尚无单独的人类模块期望；不能把代码职责当成人的确认'));references(module.refs,item);item.append(button('核对 / 修改此模块',navigate(()=>{setModelView('implementation');select('module',module.id);moduleForm(module);})));card.append(item);}
+  const conditions=el('details');conditions.append(el('summary',`限定条件与证据 · ${criteria.length} 项`));
+  if(!criteria.length)conditions.append(el('p','没有当前适用的映射条件证据。'));
+  for(const c of criteria){conditions.append(section(c.text,`${conditionNames[c.status]||c.status}；观察：${c.observable}`));for(const id of new Set(c.evidence.map(e=>e.receiptId)))conditions.append(button('查看原始回执',()=>showVerificationReceipt(id),'linklike'));}card.append(conditions);
+  const gaps=(view?.gaps||[]).filter(g=>g.lifecycle==='open'&&g.clauseIds.includes(clause.id)).sort((a,b)=>a.rank-b.rank);
+  card.append(el('h4','差距与下一步'));
+  if(!gaps.length)card.append(el('p','未列出差距不代表目标已达成；仍需对照实际用户结果。','muted'));
+  for(const gap of gaps)card.append(button(`${gap.rank}. ${gap.expected} · ${gap.action}`,navigate(()=>select('gap',gap.id)),'text-item'));
+  host.append(card);
+ }
+ const actions=el('div',undefined,'goal-review-actions');actions.append(button('总体目标不符，保存我的修正',()=>wholeForm()),button('核对场景与验收条件',showScenarios),button('查看原始反馈',showFeedback));host.append(actions);
+}
+function goalReviewForm(clause,previous){
+ editing=true;const goal=currentGoal(),basis={goalHash:goal.hash,sourceHash:view.source.hash,analysisAttemptId:view.attemptId},generation=state.generation;
+ const host=dialog('记录目标核对结果');host.append(section('这项人类目标',clause.text),el('p','只保存你对当前结果的判断；不改写目标，不替代运行证据，也不接受整个产品。保存后将重新分析差距与建议。','muted'));
+ const form=el('form');host.append(form);
+ const choice=field(form,'你的判断',el('select'));for(const [value,label] of [['unknown','还不能判断，需要补充观察'],['mismatch','不符合目标，记录具体反例'],['matches','在我观察的范围内相符']]){const option=el('option',label);option.value=value;choice.append(option);}choice.value=previous?.status==='current'?previous.decision:'unknown';
+ const description=field(form,'实际尝试了什么、看到什么（保留原话）',el('textarea'));description.required=true;description.value=previous?.originalText||'';description.placeholder='例如：我想判断这轮推进了哪项目标，但看到的只有文件变化，无法判断用户结果。';
+ const next=field(form,'下一次怎样观察或验证',el('textarea'));next.required=true;next.value=previous?.nextObservation||'';next.placeholder='例如：沿着这条目标打开本轮回执，核对具体结果，再决定是否修改。';
+ const error=el('p',undefined,'conflict');error.setAttribute('role','alert');form.append(error);
+ const save=el('button','保存核对并重新分析','primary');save.type='submit';form.append(save,button('返回目标核对',showGoalReview));
+ form.onsubmit=async event=>{event.preventDefault();if(!description.value.trim()||!next.value.trim()){error.textContent='请写明实际观察和下一验证方法；不能只选择相符或不符。';return;}save.disabled=true;
+  try{await submit('feedback',{expectedGeneration:generation,originalText:description.value,kind:'evidence-contribution',targetIds:[],author:'local-human',provenance:'用户在当前目标逐项核对中保存的观察与判断；限定自述范围，非独立执行回执或整体验收',goalReview:{clauseId:clause.id,...basis,decision:choice.value,nextObservation:next.value}});editing=false;showGoalReview();}
+  catch(e){error.textContent=`${e.message}。原话仍在表单中；请复制保留后刷新核对页，不能自动覆盖新版本。`;save.disabled=false;}
+ };
+}
+function currentReadingBasis(){return !!view&&!!currentGoal()&&!historicalRound&&view.attemptId===state.views[state.currentView]?.attemptId&&view.goal?.hash===currentGoal().hash&&state.closedLoop?.sourceHash===view.source.hash;}
+function showReadingReview(initialClause){
+ if(!currentReadingBasis())return;
+ editing=true;
+ const readingView=view,goal=currentGoal(),analysis=readingView.analysis,loop=state.closedLoop,generation=state.generation,openedProject=projectId,judgmentPending=state.diagnosisStatus==='stale';
+ const basis={goalHash:goal.hash,sourceHash:view.source.hash,analysisAttemptId:view.attemptId};
+ const round=(state.rounds?.rounds||[]).find(r=>r.id===selectedRound)||state.rounds?.rounds?.at(-1),progress=state.mainline?.rounds?.find(r=>r.roundId===round?.id);
+ let clause=initialClause||goal.clauses[0],step=0;
+ const prompts=['你希望这个程序最终帮你做到什么？','这一轮具体改善了什么？','哪些证据能证明这项改善？','还有哪里不知道或不符合预期？','下一步只做哪件事，怎样判断有用？'];
+ const hints=['用自己的话说；目标不对也可以直接指出。','只说用户能感受到的变化；看不出变化就写“看不出”。','说出你实际看到的结果和范围；没有证据就写“没有看到”。','记录具体误解、缺口或反例；仍不知道也如实写。','写一个动作及预期结果；不能决定时说明缺什么观察。'];
+ const answers=prompts.map(()=>''),host=dialog('读懂本轮与下一步');host.classList.add('reader-review');
+ host.append(el('p',`一次只核对一个问题。G${goal.version} · 来源 ${basis.sourceHash.slice(0,12)} · ${round?'轮次 '+round.id:'未登记轮次'}。你的答案不会被程序代填。${judgmentPending?' 条件或反馈更新：判断与建议待更新，旧结论仍需重核。':''}`,'muted'));
+ host.append(el('p',`本轮目的：${round?.purpose||'没有登记轮次，不能推断开发进展'}`,'reader-round'));
+ const tabs=el('nav',undefined,'reader-steps');tabs.setAttribute('aria-label','阅读核对步骤');host.append(tabs);
+ const content=el('div'),error=el('p',undefined,'conflict');error.setAttribute('role','alert');host.append(content,error);
+ const changed=()=>projectId!==openedProject||state.generation!==generation||view?.attemptId!==basis.analysisAttemptId||!currentReadingBasis();
+ function renderQuestion(){
+  tabs.replaceChildren();for(const [i,label]of ['目标','本轮改善','证明','剩余差距','下一行动'].entries()){const b=button(`${i+1} ${label}`,()=>{remember();step=i;renderQuestion();});b.setAttribute('aria-current',String(i===step));tabs.append(b);}
+  content.replaceChildren();error.textContent='';
+  const context=el('section',undefined,'reader-context');content.append(context);
+  if(step===0){
+   const scope=field(context,'这次核对哪项目标（不改变目标）',el('select'));scope.id='reader-clause';for(const c of goal.clauses){const option=el('option',brief(c.text,90));option.value=c.id;scope.append(option);}scope.value=clause.id;scope.onchange=()=>{remember();clause=goal.clauses.find(c=>c.id===scope.value);renderQuestion();};
+   context.append(section('这项人类目标',clause.text));const original=el('details');original.append(el('summary','展开完整目标原文'),el('p',goal.originalText));context.append(original,section('程序目前理解的用途',analysis.purpose));
+  }else if(step===1){
+   if(progress?.delivery?.current){const report=progress.delivery;context.append(section('之前',report.before),section('现在',report.after),section('与你目标的关系',report.goalConnection),el('small',`开发说明：${report.author}，仍请核对实际结果。`,'muted'));}
+   else context.append(section('这一轮为什么做',round?.purpose||'没有登记轮次，不能推断本轮进展'),section('进展依据',progress?.mapping?.reason||'尚无这轮的主线关联判断；任务目的不等于完成。'));
+   if(round&&(round.sourceStale||round.goalHash!==basis.goalHash))context.append(el('p','这轮与当前目标或来源不匹配；这里只说明历史目的，旧通过不沿用。','conflict'));
+   const changes=el('details');changes.append(el('summary','查看登记的来源变化'));for(const delta of round?.deltas||[])changes.append(el('p',`${delta.kind||'变化'} · ${delta.path}`));if(!round?.deltas?.length)changes.append(el('p','没有来源差异记录，不能据此判断是否有改善。'));context.append(changes);
+  }else if(step===2){
+   const criteria=loop.confirmationMapping?.applicable?(loop.criteria||[]).filter(c=>c.clauseIds.includes(clause.id)):[];
+   const ids=new Set(criteria.flatMap(c=>c.evidence.filter(e=>e.current&&e.roundId===round?.id).map(e=>e.receiptId)));
+   const receipts=(loop.receipts||[]).filter(r=>ids.has(r.id)&&r.current&&r.binding.roundId===round?.id&&r.binding.goalHash===basis.goalHash&&r.binding.sourceHash===basis.sourceHash);
+   if(progress?.delivery?.current)context.append(section('实际检查了什么',progress.delivery.evidenceSummary));
+   context.append(el('h3','这项目标的限定条件与本轮证明'),el('p','只显示当前适用、属于所选轮次的回执；技术通过不能证明人已理解。','muted'));
+   if(!criteria.length)context.append(el('p','没有当前适用的已确认条件。'));
+   for(const c of criteria){const evidence=c.evidence.filter(e=>e.current&&e.roundId===round?.id&&receipts.some(r=>r.id===e.receiptId)),statuses=[...new Set(evidence.map(e=>e.status||'unknown'))];context.append(section(c.text,`本轮结果：${statuses.length?statuses.map(s=>conditionNames[s]||s).join('、'):'未知，没有匹配回执'}；怎样观察：${c.observable||'尚未说明'}。`));}
+   if(!receipts.length)context.append(el('p','本轮没有匹配的独立回执；保留未知。'));
+   for(const receipt of receipts){const raw=el('details');raw.dataset.readerReceipt=receipt.id;raw.append(el('summary',`展开本轮原始回执 · ${receipt.id}`),el('pre',JSON.stringify(receipt,null,2)));context.append(raw);}
+  }else if(step===3){
+   const gaps=(readingView.gaps||[]).filter(g=>g.lifecycle==='open'&&g.clauseIds.includes(clause.id)).sort((a,b)=>a.rank-b.rank);
+   if(progress?.delivery?.current){context.append(section('还差什么',progress.delivery.remaining));const original=el('details');original.append(el('summary',judgmentPending?'上版整体判断 · 待重核':'模型整体判断原文'),el('p',analysis.diagnosis?.conclusion||'尚无整体判断'));context.append(original);}
+   else context.append(section(judgmentPending?'上版整体判断 · 待重核':'整体判断',analysis.diagnosis?.conclusion||'尚无整体判断'));
+   const list=el('details');list.append(el('summary',`查看${judgmentPending?'上版（待重核）':''}这项目标的差距 · ${gaps.length} 项`));for(const g of gaps)list.append(section(`${g.rank}. ${g.expected}`,`分析描述：${g.actual}；下一观察：${g.nextObservation}`));if(!gaps.length)list.append(el('p','未列出差距不等于已达成。'));context.append(list);
+  }else{renderCurrentAction(context);context.append(el('p','这是供你核对的建议。请说出你的下一行动和判断方法；保存不会执行开发任务。','muted'));}
+  const answer=field(content,`${step+1}. ${prompts[step]}`,el('textarea'));answer.parentElement.classList.add('reader-question');answer.id='reader-answer';answer.value=answers[step];answer.placeholder=hints[step];answer.setAttribute('aria-describedby','reader-hint');const hint=el('p',hints[step],'muted');hint.id='reader-hint';content.append(hint);
+  const actions=el('div',undefined,'reader-actions');if(step>0)actions.append(button('上一个',()=>{remember();step--;renderQuestion();}));const next=button(step===4?'检查并保存':'下一个',()=>{remember();if(step<4){step++;renderQuestion();}else showAnswers();},'primary');next.id='reader-next';actions.append(next);content.append(actions);
+ }
+ function remember(){const answer=$('reader-answer');if(answer)answers[step]=answer.value;}
+ function showAnswers(){
+  error.textContent='';
+  const missing=answers.findIndex(a=>!a.trim());if(missing>=0){step=missing;renderQuestion();error.textContent='请留下自己的观察；不知道也可以明确写“还不知道”，不能空白提交。';return;}
+  content.replaceChildren();tabs.hidden=true;const form=el('form');content.append(form);form.append(section('本次核对范围',clause.text));for(const [i,answer]of answers.entries())form.append(section(`${i+1}. ${prompts[i]}`,answer));
+  const decision=field(form,'在上述观察范围内，你的判断',selectOptions({unknown:'还不能判断，需要补充观察',mismatch:'不符合目标，有具体反例',matches:'在我观察的范围内相符'},'unknown'));
+  const problem=el('p',undefined,'conflict');problem.setAttribute('role','alert');form.append(problem);
+  const save=el('button','保存核对并重新分析','primary');save.type='submit';form.append(save,button('返回修改答案',()=>{tabs.hidden=false;renderQuestion();}));
+  form.onsubmit=async event=>{
+   event.preventDefault();if(changed()){problem.textContent='依据已变化，草稿保留在这里。请复制答案后重新打开核对，不能把旧观察自动改绑新版本。';return;}save.disabled=true;
+   const originalText=[`阅读对象：G${goal.version}；来源 ${basis.sourceHash}；分析 ${basis.analysisAttemptId}；轮次 ${round?.id||'未登记'}；目标条款 ${clause.id}。`,...answers.map((answer,i)=>`${i+1}. ${prompts[i]}\n${answer}`)].join('\n\n');
+   try{const result=await submit('feedback',{expectedGeneration:generation,originalText,kind:'evidence-contribution',targetIds:[],author:'local-human',provenance:'用户在五步阅读核对中逐项填写的原话；题目和版本信息由界面标注。限定自述范围，不是独立执行回执或整体验收。',goalReview:{clauseId:clause.id,...basis,decision:decision.value,nextObservation:answers[4]}});editing=false;host.classList.remove('reader-review');showGoalReview();notice(result.analysisError?`核对已保存，但重新分析尚未启动：${result.analysisError}`:result.job?'核对已保存，正在重新分析。返回前会保留上一版判断。':'核对已保存；分析状态请看页面提示。');}
+   catch(e){problem.textContent=`${e.message}。所有原话保留在草稿中，请复制后重新核对，不能自动覆盖。`;save.disabled=false;}
+  };
+ }
+ renderQuestion();
+}
 function renderClosedLoop(){
  let host=$('closed-loop-summary');if(!host){host=el('div',undefined,'closed-loop-summary');host.id='closed-loop-summary';$('overall-panel').append(host);}host.replaceChildren();
  const loop=state?.closedLoop,confirmed=loop?.confirmation;
- host.append(el('span',loop?.status==='verified'?'确认的关键条件已有范围验证':confirmed?'关键场景仍有未验证或失败条件':'场景与验收条件待确认'),button('核对场景与条件',showScenarios),button('实际验证与调用',()=>showVerification()));
- if(loop){const p=el('p',loop.priorityReason,'muted');host.append(p);}
+ const review=button('目标与实现逐项核对',showGoalReview,'primary');review.id='review-goal';host.append(review,el('span',loop?.status==='verified'?'确认的关键条件已有范围验证':confirmed&&loop.confirmationMapping?.status==='needs-review'?'分析依据已变化，确认条件待重新核对':confirmed?'关键场景仍有未验证或失败条件':'场景与验收条件待确认'),button('核对场景与条件',showScenarios),button('实际验证与调用',()=>showVerification()));
+ const reader=button('读懂本轮与下一步',()=>showReadingReview());reader.id='review-round';reader.disabled=!currentReadingBasis();reader.title=reader.disabled?'当前是历史图，或目标／来源已变化，请先完成当前来源分析':'沿目标、本轮改善、证明、差距和一个行动核对';host.prepend(reader);
+ if(state.goalReviews&&!historicalRound){const reports=state.goalReviews.clauses||[],pending=reports.filter(r=>r.status!=='current'||r.decision==='unknown').length,mismatches=reports.filter(r=>r.status==='current'&&r.decision==='mismatch').length;host.append(button(`目标含义核对：${pending} 项待判断${mismatches?` · ${mismatches} 项报告不符`:''}`,showGoalReview,'linklike'),el('small','核对意见与技术回执分别保留；相符报告不等于整体验收。'));}
+ if(loop){const p=el('p',loop.priorityReason,'muted');host.append(p);if(confirmed&&loop.confirmationMapping)host.append(el('p',loop.confirmationMapping.reason,'muted'));}
+ const report=currentRoundDelivery();if(report&&workspace==='goals'){const correct=button('指出说明的问题',()=>correctDelivery(report));correct.id='correct-delivery';host.append(correct);}if(report&&workspace!=='goals'){const tools=el('details',undefined,'delivery-tools');tools.append(el('summary','展开目标核对与技术检查'));for(const node of [...host.children])if(node!==reader)tools.append(node);const correct=button('指出说明的问题',()=>correctDelivery(report),'primary');correct.id='correct-delivery';host.replaceChildren(correct,reader,el('small','不用先答五题；直接指出不对或看不懂的地方，先保存到本机。'),tools);}
 }
 function showScenarios(){
  editing=true;const host=dialog('核对场景与可观察的验收条件'),goal=currentGoal(),generation=state.generation,proposal=[...(state.scenarioSets||[])].reverse().find(p=>p.status==='proposed'&&p.goalHash===goal?.hash&&p.analysisAttemptId===view?.attemptId),confirmed=state.closedLoop?.confirmation;
@@ -483,14 +752,56 @@ function showScenarios(){
  host.append(section('人类目标原文',goal?.originalText||'尚未提供目标'),el('p','模型提议尚未确认。编辑后一次确认；已有人工确认优先保留，重分析不会替换人工文字。'));
  if(!baseline){host.append(el('p','当前目标尚无可核对的新场景提议。请先重新分析。'),button('重新分析',()=>submit('analyze',{}).catch(()=>{})));return;}
  if(confirmed)host.append(section('已保存的确认',`G${confirmed.goalVersion} · ${confirmed.author} · ${confirmed.createdAt}；来源 ${confirmed.sourceHash}。本次确认绑定当前已分析来源。`));
- let draft=JSON.parse(JSON.stringify(baseline.scenarios));const fields=el('div');host.append(fields);
+ let draft=JSON.parse(JSON.stringify(baseline.scenarios));const supplemented=new Map();
+ const coverage=el('section'),suggestions=el('section'),fields=el('div');coverage.id='scenario-coverage';host.append(coverage,suggestions,fields);
+ const renderCoverage=()=>{
+  coverage.replaceChildren(el('h3','总体目标 → 本次草稿的条件覆盖'),el('p','有条件不等于实现或验证通过；补入提议后仍需你核对并确认。','muted'));
+  for(const clause of goal?.clauses||[]){
+   const criteria=draft.filter(s=>s.critical==='critical').flatMap(s=>s.criteria).filter(c=>c.clauseIds.includes(clause.id));
+   const status=!criteria.length?'未设关键条件':criteria.some(c=>c.mapping!=='mapped')?'已有条件，映射待核对':'已有映射条件，结果待验证';
+   coverage.append(section(`${clause.text}：${status}`,criteria.map(c=>c.text).join('；')));
+  }
+ };
+ const renderSuggestions=()=>{
+  suggestions.replaceChildren();
+  const remaining=(proposal?.scenarios||[]).filter(s=>{
+   if(supplemented.has(s.id)&&draft.some(d=>d.id===supplemented.get(s.id)))return false;
+   const existing=draft.find(d=>d.id===s.id);return !existing||JSON.stringify(existing)!==JSON.stringify(s);
+  });
+  if(!remaining.length)return;
+  suggestions.append(el('h3','尚未加入的模型提议'),el('p','逐项阅读后补入草稿；不会替换已有人工文字，也不会自动确认。','muted'));
+  for(const scenario of remaining){
+   const existing=draft.find(d=>d.id===scenario.id),detail=el('details');detail.append(el('summary',scenario.title));
+   if(existing){
+    detail.append(section('同 ID 提议有变化 · 保留人工版本',`当前草稿：${existing.given} → ${existing.when} → ${existing.then}；条件：${existing.criteria.map(c=>c.text).join('；')}`));
+    const comparison=el('details');comparison.append(el('summary','查看完整字段差异（含映射与不确定性）'));
+    const describe=(before,after,path='')=>{for(const name of new Set([...Object.keys(before||{}),...Object.keys(after||{})])){
+     const a=before?.[name],b=after?.[name],field=path?`${path}.${name}`:name;
+     if(a&&b&&typeof a==='object'&&typeof b==='object'){describe(a,b,field);continue;}
+     if(JSON.stringify(a)!==JSON.stringify(b))comparison.append(section(field,`人工草稿：${JSON.stringify(a)??'无'}\n模型提议：${JSON.stringify(b)??'无'}`));
+    }};describe(existing,scenario);detail.append(comparison);
+   }
+   detail.append(section('前提 / 动作 / 结果',`${scenario.given} → ${scenario.when} → ${scenario.then}`));
+   for(const c of scenario.criteria)detail.append(section(c.text,`${c.observable}；目标：${labels(c.clauseIds,'clause')}`));
+   detail.append(button(`${existing?'另存为补充草稿':'补入草稿'}：${scenario.title}`,()=>{
+    const copy=JSON.parse(JSON.stringify(scenario)),used=new Set(draft.flatMap(s=>[s.id,...s.criteria.map(c=>c.id)]));
+    for(const item of [copy,...copy.criteria]){if(used.has(item.id))item.id=`scenario-item-${key()}`;used.add(item.id);}
+    supplemented.set(scenario.id,copy.id);draft.push(copy);renderDraft();
+   }));suggestions.append(detail);
+  }
+ };
  const emptyMapping=()=>({clauseIds:[],journeyIds:[],targetIds:[],mapping:'unknown',uncertainty:'尚未核对映射'});
  const newCriterion=()=>({id:`criterion-${key()}`,text:'新验收条件',observable:'填写可观察的结果',...emptyMapping()});
  const labels=(ids,kind)=>ids.map(id=>kind==='clause'?goal?.clauses.find(c=>c.id===id)?.text||id:kind==='journey'?view?.analysis.workflow?.journeys.find(j=>j.id===id)?.title||id:view?.analysis.modules.find(m=>m.id===id)?.title||view?.analysis.edges.find(e=>e.id===id)?.label||id).join('；')||'尚未映射';
- const renderDraft=()=>{fields.replaceChildren();for(const scenario of draft){const group=el('fieldset');group.append(el('legend',scenario.id));fields.append(group);
-  const edit=(container,label,obj,k)=>{const t=field(container,label,el('textarea'));t.value=obj[k];t.oninput=()=>{obj[k]=t.value;};};
+ const renderDraft=()=>{renderCoverage();renderSuggestions();fields.replaceChildren();for(const scenario of draft){const group=el('fieldset');group.append(el('legend',scenario.id));fields.append(group);
+  const mappingNotice=el('p',undefined,'muted');group.append(mappingNotice);
+  const edit=(container,label,obj,k)=>{const t=field(container,label,el('textarea'));t.value=obj[k];t.oninput=()=>{
+   obj[k]=t.value;
+   for(const item of obj===scenario?[scenario,...scenario.criteria]:[obj]){item.mapping='unknown';item.uncertainty='人工修改了含义；原关联仅为候选，需要重新核对目标、旅程与实现。';}
+   mappingNotice.textContent='含义已修改：原映射需重新核对，不能直接继承旧条件结果。';renderCoverage();
+  };};
   edit(group,'场景名称',scenario,'title');edit(group,'前提',scenario,'given');edit(group,'用户动作',scenario,'when');edit(group,'可见结果',scenario,'then');
-  const critical=field(group,'重要性',el('select'));for(const [v,label] of [['critical','关键旅程'],['supporting','支持场景']]){const o=el('option',label);o.value=v;critical.append(o);}critical.value=scenario.critical;critical.onchange=()=>scenario.critical=critical.value;
+  const critical=field(group,'重要性',el('select'));for(const [v,label] of [['critical','关键旅程'],['supporting','支持场景']]){const o=el('option',label);o.value=v;critical.append(o);}critical.value=scenario.critical;critical.onchange=()=>{scenario.critical=critical.value;renderCoverage();};
   for(const criterion of scenario.criteria){const row=el('div',undefined,'criterion-editor');group.append(row);edit(row,`验收条件 ${criterion.id}`,criterion,'text');edit(row,'怎样观察是否达到',criterion,'observable');row.append(section('条款 / 旅程 / 实现映射',`${labels(criterion.clauseIds,'clause')} / ${labels(criterion.journeyIds,'journey')} / ${labels(criterion.targetIds,'target')}；${criterion.uncertainty}`),button('删除此条件',()=>{scenario.criteria=scenario.criteria.filter(c=>c!==criterion);renderDraft();}));}
   group.append(button('添加验收条件',()=>{scenario.criteria.push(newCriterion());renderDraft();}),button('删除此场景',()=>{draft=draft.filter(s=>s!==scenario);renderDraft();}));
   const mapping=el('details');mapping.append(el('summary','高级：编辑映射（JSON）'));const json=field(mapping,'当前场景 JSON',el('textarea'));json.value=JSON.stringify(scenario,null,2);json.rows=10;mapping.append(button('应用此场景 JSON',()=>{try{const value=JSON.parse(json.value);if(value.id!==scenario.id||!Array.isArray(value.criteria))throw new Error('须保留场景 ID 和条件数组');draft[draft.indexOf(scenario)]=value;renderDraft();}catch(e){error.textContent=e.message;}}));group.append(mapping);
@@ -507,9 +818,10 @@ function showVerification(coverage=null){
  if(historicalRound||coverage?.status==='unavailable'){host.append(el('p','历史或过时图不使用当前目标的运行证据。请返回当前分析查看当前条件与回执。'));return;}
  if(coverage){const receiptIds=new Set(coverage.criteria.flatMap(c=>c.evidence.map(e=>e.receiptId)));loop={...loop,receipts:(loop?.receipts||[]).filter(r=>receiptIds.has(r.id)),runtimeCalls:(loop?.runtimeCalls||[]).filter(t=>receiptIds.has(t.receiptId)&&coverage.targetIds.includes(t.edgeId))};}
  host.append(el('p','本页面只导入登记证据根中的回执。检查由操作者在本机 CLI 显式选择运行；退出码或代理报告不代表验收条件通过。'));
+ if(loop?.confirmation)host.append(section('确认条件与当前分析',loop.confirmationMapping?.reason||'原确认记录保留；适用性须核对。'));
  const names={passed:'条件通过','environment-blocked':'环境前提阻塞','missing-capability':'明确能力缺失','behavior-failed':'行为不符',unknown:'未知 / 缺少条件证据'};
  if(coverage)host.append(section('所选对象的运行覆盖',`${coverage.label}；实现 ${coverage.targetIds.join(', ')||'未映射'}；条款 ${coverage.clauseIds.join(', ')||'未映射'}；仅这些明确映射的条件，不证明相邻连接。`));
- for(const c of coverage?coverage.criteria:loop?.criteria||[]){const box=section(`${c.scenarioTitle} · ${c.text}`,`${names[c.status]||c.status}${c.recovered?' · 同检查复测已恢复，历史失败保留':''}${c.mixed?' · 独立检查结果冲突':''}；观察方法：${c.observable}；映射：${c.mapping}`);for(const e of c.evidence)box.append(section(`${e.receiptId} · ${e.roundId}`,`${e.current===false?'历史复测前结果':'当前执行结果'} · ${e.checkId||''} · ${e.at||''} · ${e.status}；${e.actual}；${e.evidence}`));for(const id of c.targetIds)box.append(button(`查看实现 ${id}`,()=>{ $('dialog').close();editing=false;select(view?.analysis.modules.some(m=>m.id===id)?'module':'edge',id);}));host.append(box);}
+ for(const c of coverage?coverage.criteria:loop?.criteria||[]){const box=section(`${c.scenarioTitle} · ${c.text}`,`${names[c.status]||c.status}${c.recovered?' · 同检查复测已恢复，历史失败保留':''}${c.mixed?' · 独立检查结果冲突':''}；观察方法：${c.observable}；映射：${c.mapping}`);for(const e of c.evidence){const raw=el('details');raw.append(el('summary',`${e.current===false?'历史检查':'当前检查'} · ${names[e.status]||e.status} · 展开原始断言`),section('回执与绑定',`${e.receiptId} · ${e.roundId} · ${e.checkId||''} · ${e.at||''}`),section('原始实际结果',e.actual),section('原始依据',e.evidence));box.append(raw);}for(const id of c.targetIds)box.append(button(`查看实现 ${view?.analysis.modules.find(m=>m.id===id)?.title||view?.analysis.edges.find(e=>e.id===id)?.label||id}`,()=>{ $('dialog').close();editing=false;select(view?.analysis.modules.some(m=>m.id===id)?'module':'edge',id);}));host.append(box);}
  if(loop?.uncoveredClauseIds?.length)host.append(section('尚未覆盖的核心条款',loop.uncoveredClauseIds));
  const runtime=el('details');runtime.append(el('summary','运行调用（独立于源码调用候选）'));if(!loop?.runtimeCalls?.length)runtime.append(el('p','没有实际调用 trace；不从 import、模块顺序或模型输出构造运行调用图。'));for(const t of loop?.runtimeCalls||[])runtime.append(section(`${t.from} → ${t.to}`,`检查 ${t.checkId} · exit ${t.exitCode} · 断言 ${(t.assertionStatuses||[]).join(', ')} · ${t.edgePassed?'对应条件通过':'仅观察到调用，不证明边通过'} · ${t.event} · trace ${t.traceId} · ${t.evidence} · ${t.receiptId} · ${t.roundId}`));host.append(runtime);
  for(const r of loop?.receipts||[]){const detail=el('details');detail.append(el('summary',`${r.id} · ${r.current?'当前绑定':'过时 / 来源变化'} · ${r.binding.roundId}`),section('绑定',`G${r.binding.goalVersion} · ${r.binding.sourceHash} · ${r.binding.confirmationId}`));for(const c of r.checks)detail.append(section(c.id,`${c.argv.join(' ')}；退出 ${c.exitCode}；${c.executionError||'执行记录已保留'}`),section('环境前提',c.preflight.map(p=>`${p.value}: ${p.passed?'可用':p.reason}`)),section('标准输出',c.stdout),section('标准错误',c.stderr));host.append(detail);}

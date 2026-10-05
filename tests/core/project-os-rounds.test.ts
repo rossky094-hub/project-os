@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, appendFileSync, readFileSync, rm
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { HumanGoalService, targetStatus } from '../../src/core/human-goal-workflow/service.js';
-import { projectRounds, roundData, sourceDelta, type Enrollment, type RoundEvent } from '../../src/core/human-goal-workflow/rounds.js';
+import { projectRounds, roundData, sourceDelta, currentAnalysisRoundContext, type Enrollment, type RoundEvent } from '../../src/core/human-goal-workflow/rounds.js';
 import { normalizeCodex } from '../../src/core/human-goal-workflow/codex-events.js';
 import { digest, hash, type AnalysisInput, type Analysis } from '../../src/core/human-goal-workflow/types.js';
 import { discoverSource } from '../../src/core/human-goal-workflow/source.js';
@@ -15,6 +15,59 @@ afterEach(async()=>{vi.restoreAllMocks();await service.close();rmSync(root,{recu
 function registration(id='r1',mode:'live'|'historical-replay'='live'):Enrollment {const s=service.read('self'),before=service.rounds.capture('self');return {id,projectId:'self',repoRoot:source,worktreeRoot:source,branch:'test',tool:'codex-exec',toolVersion:'0.155.0-alpha.2.6',taskId:`task-${id}`,roundId:`round-${id}`,attemptId:`attempt-${id}`,producerId:`producer-${id}`,mode,goalHash:s.goals.at(-1)!.hash,feedbackIds:[s.feedback[0].id],purpose:'test real changes',clauseIds:['goal'],journeyIds:[],selectedActionIds:[],acceptedPlan:null,beforeSnapshotId:before.id,stream:{rootIndex:0,path:`${id}.jsonl`},deferredBenefit:null};}
 function event(r:Enrollment,n:number,extra:Partial<RoundEvent>={}):RoundEvent{return {key:`${r.id}-e${n}`,projectId:'self',registrationId:r.id,roundId:r.roundId,attemptId:r.attemptId,producerId:r.producerId,sequence:n,dependsOn:[],kind:n===1?'begin':'checkpoint',description:n===1?'turn-start':'activity-observed',rawHash:digest(`event-${n}`),observedAt:'2026-09-17T00:00:00.000Z',sourceSnapshotId:null,...extra};}
 function lines(id:string,values:unknown[]){writeFileSync(join(evidence,`${id}.jsonl`),values.map(x=>JSON.stringify(x)).join('\n')+'\n');}
+it('current analysis supplies recent goal rounds and dependencies while retaining older history explicitly',()=>{
+ for(let n=0;n<6;n++){const r=registration(`context-${n}`);service.rounds.enroll('self',r);service.rounds.accept('self',event(r,1));service.rounds.accept('self',event(r,2,{kind:'completed',description:'turn-completed',sourceSnapshotId:service.rounds.capture('self').id}));}
+ const state=service.read('self'),before=JSON.stringify(state),context=currentAnalysisRoundContext(state,{window:3,noProofThreshold:3,addedBytesThreshold:20000});
+ expect(context.registrations.map(r=>r.binding.id)).toEqual(['context-3','context-4','context-5']);
+ expect(context.events).toHaveLength(6);expect(context.history.archivedRounds).toHaveLength(3);
+ expect(context.history).toMatchObject({mode:'current-goal-window',totalEvents:12,suppliedEvents:6});
+ expect(context.history.archivedRounds.every(r=>r.contentHash.length===64&&r.eventCount===2)).toBe(true);
+ expect(JSON.stringify(state)).toBe(before);
+ state.rounds!.events.at(-1)!.event.dependsOn=['context-0-e1'];
+ const linked=currentAnalysisRoundContext(state,{window:3,noProofThreshold:3,addedBytesThreshold:20000});
+ expect(linked.registrations.map(r=>r.binding.id)).toEqual(['context-0','context-3','context-4','context-5']);
+ expect(linked.events.some(e=>e.key==='context-0-e1')).toBe(true);
+});
+// Device migration is simulated in the saved identity; inode replacement uses a
+// real rename and new file. Both retain the actual consumed bytes and receipts.
+it.each(['device','inode'])('exact terminal archive recovery after %s change preserves history and is idempotent across restart',async(change)=>{
+ const r=registration();service.rounds.enroll('self',r);lines(r.id,[{type:'turn.started'},{type:'turn.completed'}]);
+ const terminal=service.follower.follow('self',r.id),path=join(evidence,'r1.jsonl'),raw=readFileSync(path);
+ if(change==='device'){const [dev,ino]=terminal.fileIdentity!.split(':');service.rounds.update('self',r.id,{fileIdentity:`${Number(dev)+1}:${ino}`});}
+ else {renameSync(path,join(evidence,'original.jsonl'));writeFileSync(path,raw);}
+ const before=service.read('self'),object=join(config.dataDir,'sessions','self',`${hash(before)}.json`),original=readFileSync(object);
+ const failed=service.follower.follow('self',r.id);expect(failed.issue).toContain('STREAM_ROTATED');
+ service.follower.poll();expect(roundData(service.read('self')).registrations[0]).toEqual(failed);
+ await service.close();service=new HumanGoalService(config,model);
+ const capture=vi.spyOn(service.rounds,'capture'),accept=vi.spyOn(service.rounds,'accept'),analyze=vi.spyOn(model,'analyze');
+ const recovered=service.follower.follow('self',r.id);expect(recovered.status).toBe('terminal');expect(recovered.issue).toBeNull();
+ expect(recovered).toMatchObject({offset:terminal.offset,line:terminal.line,cursor:terminal.cursor,prefixHash:terminal.prefixHash,binding:terminal.binding,lastReceivedAt:terminal.lastReceivedAt});
+ expect(recovered.fileIdentity).not.toBe(failed.fileIdentity);
+ expect(recovered.syncHistory?.map(e=>e.kind)).toEqual(['error','replay','recovered']);
+ expect(recovered.syncHistory?.[0]).toEqual(failed.syncHistory?.[0]);
+ expect(recovered.syncHistory?.every(e=>e.offset===terminal.offset&&e.cursor===terminal.cursor&&e.prefixHash===terminal.prefixHash)).toBe(true);
+ await service.idle();expect(capture).not.toHaveBeenCalled();expect(accept).not.toHaveBeenCalled();expect(analyze).not.toHaveBeenCalled();
+ const after=service.read('self');expect(after.rounds!.events).toEqual(before.rounds!.events);expect(after.rounds!.snapshots).toEqual(before.rounds!.snapshots);expect(after.observations).toEqual(before.observations);expect(after.attempts).toEqual(before.attempts);expect(readFileSync(object)).toEqual(original);
+ const save=vi.spyOn(service.store,'save');service.follower.follow('self',r.id);service.follower.poll();expect(save).not.toHaveBeenCalled();
+ await service.close();service=new HumanGoalService(config,model);service.follower.follow('self',r.id);expect(service.read('self')).toEqual(after);
+});
+it.each(['same-size tamper','shorter','appended','unfinished','pending','unconsumed terminal','empty'])('exact terminal archive recovery rejects %s without importing progress',(variant)=>{
+ const r=registration();service.rounds.enroll('self',r);
+ if(variant==='empty')writeFileSync(join(evidence,'r1.jsonl'),'');
+ else lines(r.id,variant==='unfinished'?[{type:'turn.started'}]:[{type:'turn.started'},{type:'turn.completed'}]);
+ const consumed=service.follower.follow('self',r.id),path=join(evidence,'r1.jsonl'),raw=readFileSync(path,'utf8');
+ if(variant==='pending')service.rounds.accept('self',event(r,3,{dependsOn:['absent']}));
+ if(variant==='unconsumed terminal')service.rounds.update('self',r.id,{cursor:1});
+ renameSync(path,join(evidence,'original.jsonl'));
+ writeFileSync(path,variant==='same-size tamper'?raw.replace('turn.started','turn.changed'):variant==='shorter'?raw.slice(0,-1):variant==='appended'?raw+'{"type":"turn.started"}\n':raw);
+ const before=service.read('self'),capture=vi.spyOn(service.rounds,'capture'),accept=vi.spyOn(service.rounds,'accept');
+ expect(service.follower.follow('self',r.id).issue).toContain('STREAM_ROTATED');
+ const failed=service.follower.follow('self',r.id);expect(failed.status).toBe('sync-error');expect(failed.issue).not.toBeNull();
+ expect(failed).toMatchObject({offset:consumed.offset,line:consumed.line,prefixHash:consumed.prefixHash,fileIdentity:consumed.fileIdentity});
+ expect(failed.syncHistory?.some(e=>e.kind==='recovered')).toBe(false);expect(capture).not.toHaveBeenCalled();expect(accept).not.toHaveBeenCalled();
+ expect(service.read('self').rounds!.events).toEqual(before.rounds!.events);expect(service.read('self').rounds!.snapshots).toEqual(before.rounds!.snapshots);
+ const stopped=service.read('self');service.follower.poll();expect(service.read('self')).toEqual(stopped);
+});
 it('durable ACK, exact duplicate, immutable conflict, out-of-order gap and dependency release survive reopen',async()=>{const r=registration();service.rounds.enroll('self',r);const third=event(r,3,{dependsOn:['r1-e2']});expect(service.rounds.accept('self',third).cursor).toBe(0);expect(service.rounds.accept('self',event(r,1)).cursor).toBe(1);expect(projectRounds(service.read('self')).rounds[0].pending).toHaveLength(1);expect(service.rounds.accept('self',event(r,2)).cursor).toBe(3);expect(service.rounds.accept('self',third).duplicate).toBe(true);expect(()=>service.rounds.accept('self',{...third,rawHash:digest('changed')})).toThrow('冲突');expect(()=>service.rounds.accept('self',{...third,key:'another'})).toThrow('冲突');await service.close();service=new HumanGoalService(config,model);const d=roundData(service.read('self'));expect(d.events).toHaveLength(3);expect(d.conflicts).toHaveLength(2);expect(d.registrations[0].cursor).toBe(3);});
 it('per producer cursors do not overwrite and cross producer dependencies wait',()=>{const a=registration('a'),b=registration('b');service.rounds.enroll('self',a);service.rounds.enroll('self',b);service.rounds.accept('self',event(b,1,{dependsOn:['a-e1']}));expect(roundData(service.read('self')).registrations[1].cursor).toBe(0);service.rounds.accept('self',event(a,1));expect(roundData(service.read('self')).registrations.map(r=>r.cursor)).toEqual([1,1]);});
 it('no ACK is returned on failed durable save; replay after committed lost ACK is idempotent',()=>{const r=registration();service.rounds.enroll('self',r);const save=vi.spyOn(service.store,'save').mockImplementationOnce(()=>{throw new Error('injected disk failure');});expect(()=>service.rounds.accept('self',event(r,1))).toThrow('disk failure');expect(roundData(service.read('self')).events).toHaveLength(0);save.mockRestore();service.rounds.accept('self',event(r,1));expect(service.rounds.accept('self',event(r,1)).duplicate).toBe(true);});
@@ -222,4 +275,23 @@ it('repeat import revalidates trusted bytes and paths while a fresh observation 
  const stale=service.read('self');expect(stale.generation).toBe(before.generation);expect(stale.observations).toEqual(before.observations);expect(stale.conflicts.at(-1)?.reason).toBe('STALE_BASE');expect(stale.idempotency['fresh-stale']).toBeUndefined();
  expect(()=>service.observe('self',{...request,idempotencyKey:'fresh-tamper',expectedGeneration:stale.generation,rawHash:digest('tampered')})).toThrow(expect.objectContaining({code:'EVIDENCE_UNQUALIFIED'}));
  expect(service.read('self')).toEqual(stale);expect(service.importRoundEvidence('self',ref)).toEqual(before.idempotency[request.idempotencyKey].result);expect(service.read('self')).toEqual(stale);
+});
+
+it('idle missing producers do not reread history; file appearance still follows the real turn',()=>{
+ const r=registration('idle-missing','historical-replay');service.rounds.enroll('self',r);service.follower.poll();
+ expect(roundData(service.read('self')).registrations[0].issue).toContain('STREAM_MISSING');
+ const load=vi.spyOn(service.store,'load');service.follower.poll();load.mockClear();const pointer=readFileSync(join(config.dataDir,'sessions/self/current.json'),'utf8');
+ service.follower.poll();service.follower.poll();expect(load).not.toHaveBeenCalled();expect(readFileSync(join(config.dataDir,'sessions/self/current.json'),'utf8')).toBe(pointer);
+ lines('idle-missing',[{type:'turn.started'},{type:'turn.completed'}]);service.follower.poll();
+ expect(roundData(service.read('self')).registrations[0].status).toBe('terminal');expect(roundData(service.read('self')).events).toHaveLength(2);
+});
+it('idle observation index notices durable changes even when generation stays the same',()=>{
+ const r=registration('idle-change','historical-replay');service.rounds.enroll('self',r);service.follower.poll();service.follower.poll();const generation=service.read('self').generation;
+ service.rounds.update('self','idle-change',{status:'unsupported',issue:'explicit stop in fixture'});expect(service.read('self').generation).toBe(generation);
+ const load=vi.spyOn(service.store,'load');service.follower.poll();expect(load).toHaveBeenCalledTimes(1);load.mockClear();service.follower.poll();expect(load).not.toHaveBeenCalled();
+});
+it('idle observation never hides corrupted immutable state behind an unchanged pointer',()=>{
+ const r=registration('idle-corrupt','historical-replay');service.rounds.enroll('self',r);service.follower.poll();service.follower.poll();
+ const dir=join(config.dataDir,'sessions/self'),ref=JSON.parse(readFileSync(join(dir,'current.json'),'utf8')),state=service.read('self');state.projectId='other';writeFileSync(join(dir,ref.hash+'.json'),JSON.stringify(state));
+ expect(()=>service.follower.poll()).toThrow('状态损坏');
 });
