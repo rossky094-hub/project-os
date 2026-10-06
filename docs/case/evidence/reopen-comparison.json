@@ -1,0 +1,21 @@
+{
+  "schema": "project-os.final-reopen-comparison.v1",
+  "scope": "One actual normal service reopen preserves final goals, history visible through API, completed/interrupted attempts, current analysis, receipt, condition status and current action. No independent participant or arbitrary recovery claim.",
+  "checkedAt": "2026-10-06T01:45:41.818Z",
+  "sourceHash": "62e14e6922aaf33d39449e1f38d94880c9a20e1f30db2167835d86a4be1f430c",
+  "goalHash": "388be7f0c7b6e911628a2d7dc4a5b9dd50372f5780dd960151b25b651ed97dba",
+  "checks": {
+    "generation": true,
+    "goals": true,
+    "feedback": true,
+    "attempts": true,
+    "views": true,
+    "currentView": true,
+    "verificationReceipts": true,
+    "sourceHash": true,
+    "criteria": true,
+    "nextAction": true,
+    "confirmationApplicable": true,
+    "currentDiagnosis": true
+  }
+}

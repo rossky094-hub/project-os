@@ -1,0 +1,143 @@
+{
+  "source": "actual segmented Project OS screenshots",
+  "storyboardSha256": "b667d81410384ac3ab2e0c87db34e6fa3b623373d4270b48ee22995f55f97653",
+  "captureLogSha256": "f5f95fdfd407a6d8017d4beb2de1211dac8fadbac455d0ab91dac14deae84dfd",
+  "captureFrames": {
+    "000-before-code-read.png": {
+      "capturedAt": "2026-10-05T23:14:37.482Z",
+      "sourceRole": "workbench",
+      "sha256": "5e655d3bbcfc40328c1739614f356589254418a959e3e6fbead7f3e852fd8ef9"
+    },
+    "001-code-read-started.png": {
+      "capturedAt": "2026-10-05T23:14:37.891Z",
+      "sourceRole": "workbench",
+      "sha256": "03d6e53f4cc42c0bbe0b6d28c6a4c2e3ca377410427dd035b1c573b42e1cfaf6"
+    },
+    "002-first-code-understanding.png": {
+      "capturedAt": "2026-10-05T23:28:54.034Z",
+      "sourceRole": "workbench",
+      "sha256": "27c1577ab98b8fcd55ffd66c781b473accaa7b95f5b99eb783f09b3e7ce240d8"
+    },
+    "003-human-goal-editor-open.png": {
+      "capturedAt": "2026-10-05T23:28:54.437Z",
+      "sourceRole": "workbench",
+      "sha256": "4b40f46634cfae439b7f5b26ddf1ac69b82a9a63843f62c8f6524e15758655af"
+    },
+    "004-original-goal-typing.png": {
+      "capturedAt": "2026-10-05T23:31:03.973Z",
+      "sourceRole": "workbench",
+      "sha256": "174e1f5c87128acc16d8758742107984d81f72dcf9ecee5fcd832ab93633d316"
+    },
+    "005-original-goal-typing.png": {
+      "capturedAt": "2026-10-05T23:31:04.336Z",
+      "sourceRole": "workbench",
+      "sha256": "1d5096864747f9511daa014cf601947b856e783e5fc3f03ac003e542982e3b3a"
+    },
+    "007-original-goal-filled.png": {
+      "capturedAt": "2026-10-05T23:31:04.917Z",
+      "sourceRole": "workbench",
+      "sha256": "2b28a0a5ebd5457f30447e4e4ae34d45d66e28c94bbfbfc8bc24debf85d7c7b6"
+    },
+    "008-goal-save-submitted.png": {
+      "capturedAt": "2026-10-05T23:31:05.187Z",
+      "sourceRole": "workbench",
+      "sha256": "2222901414e9bca8148002ad9dc1e83fb75e23b44e826dae3515b1534840cedd"
+    },
+    "009-original-goal-analysis-returned.png": {
+      "capturedAt": "2026-10-05T23:54:59.898Z",
+      "sourceRole": "workbench",
+      "sha256": "59a2cc5011db87e7c3bddfd724d64764a4136941afab0a9f30dec64d265c69f9"
+    },
+    "019-six-clauses-readback.png": {
+      "capturedAt": "2026-10-06T00:31:03.644Z",
+      "sourceRole": "workbench",
+      "sha256": "66952b00dce86c9dc959cc99367be5bc40a8ed58ad27025731c2a2e0ab2056fc"
+    },
+    "024-read-only-case-module-graph.png": {
+      "capturedAt": "2026-10-06T01:33:40.541Z",
+      "sourceRole": "read-only-case",
+      "sha256": "907c5c8cec79d2c77440e0d1a4a34de2b4e87aa8cfb2cea38faa4397315321a1"
+    },
+    "025-read-only-case-module-gap-and-source.png": {
+      "capturedAt": "2026-10-06T01:34:49.410Z",
+      "sourceRole": "read-only-case",
+      "sha256": "39f2a922d1379cf0c4f181ff168d7fc5814f00f427a5b741b99b328c94468c27"
+    },
+    "021-readme-round-result-and-boundary.png": {
+      "capturedAt": "2026-10-06T01:14:53.759Z",
+      "sourceRole": "workbench",
+      "sha256": "610e447641766fc8b5d8a9eff2ca68c1fc167fcb11af8b002331ab000331fcde"
+    },
+    "022-readme-round-verification-passed-and-unknown.png": {
+      "capturedAt": "2026-10-06T01:15:06.299Z",
+      "sourceRole": "workbench",
+      "sha256": "551c8ef54e817391e9f07093b943a2b3ffaa43ed47649807afaea9f331e8baa3"
+    },
+    "020-read-only-case-goal-comparison.png": {
+      "capturedAt": "2026-10-06T00:46:35.907Z",
+      "sourceRole": "read-only-case",
+      "sha256": "439c47891d013dc3bc186c4dc2ce7462eb85e71300f9f092e1f91db70000235c"
+    }
+  },
+  "evidenceFiles": {
+    "internal/02-first-code-understanding.json": "62ab05fb134642089cffe97ffad0da8edbddbe369d94268e34d8001a3c697a4a",
+    "internal/human-input-provenance.json": "48a3e05f3c96b7a42de81634e33e5b20a5aee2b113164065a634acd9051cb9fd",
+    "internal/03-original-goal-analysis.json": "e881f2ee547cbdfe49e7147849138722b6e5267be76b543954b0fca7155de1e6",
+    "internal/corrected-goal-state.json": "6384508656b1e33896dbb2052d9df7b5adf7d02f3579fa0be94a1276c44fe788",
+    "internal/correct-goal-entry-receipt.json": "3c5e03857ecc2f788552b1d493ee2e5fe6b0d053cf1c547a5fbc2e8959da9b9c",
+    "internal/04-clarified-goal-analysis.json": "4a8ef90836f9dbc2a02430df8c72d490926f0dba3bcf962337a12d87db6aaea6",
+    "internal/round-before.json": "7a24c0fc7071bbe8410b38392135909484d1e38fbb7926d6f81881882cede752",
+    "internal/round-after.json": "8854267fe3874f48deca0cfb516ac77c414350c680348c480ed8d811a25de0ea",
+    "internal/round-begin-receipt.json": "fee69f68b02e152c9c5cb631d6679e1a5646aef8a0fbedf0de2da7b8f6714c43",
+    "internal/round-complete-receipt.json": "95602eccc6860323960b36af13ea4fdaadc7d87c873441f450e572200ee29119",
+    "internal/evidence/launch-round-verification.json": "1b88236afd9bb2352cf630fc997205f4b41a77db7d60edf58cc9b44130243a6d"
+  },
+  "omittedInvalidFrames": [
+    "011",
+    "012",
+    "013",
+    "014",
+    "015",
+    "016",
+    "017"
+  ],
+  "provenance": {
+    "captureMethod": "Actual Project OS workbench screenshots captured in separate native UI observations; this is an edit, not a continuous screen recording.",
+    "omittedWaits": "The first code read took 12m 21.5s, G1 reanalysis 14m 0.4s, G3 reanalysis 18m 46.7s, and README-source reanalysis 29m 9.7s. Model waits are omitted from the 57-second edit.",
+    "operator": "Codex transcribed historical user requirements under the current user's instruction; this is not independent novice acceptance.",
+    "invalidCaptureRange": "011–017: native AX batch entry overwrote the first row; retained as error history and excluded from successful-entry footage.",
+    "omittedNonGraphCapture": "023 has a mistaken module-links filename but shows the result/video area, not the requested relationship graph; it is retained and excluded from this edit.",
+    "productBoundary": "The workbench is a locally configured desktop Alpha. The newly exported read-only case is a separate reading surface. Whole-goal completion, unfamiliar-project reliability and independent novice effect are unaccepted. The last source analysis was in progress while frames 021 and 022 were captured; the edit does not claim its final model judgment."
+  },
+  "durationSeconds": 57,
+  "outputs": {
+    "project-os-demo-zh.mp4": {
+      "bytes": 1860369,
+      "sha256": "0caf0096683689121dc58abe1a7170a577b1bbef936d0d82ac35702557a212f5"
+    },
+    "project-os-demo-zh.srt": {
+      "bytes": 952,
+      "sha256": "23403c54e1456fc9193097783575574002362a475412be52203afe59777c679e"
+    },
+    "project-os-demo-en.mp4": {
+      "bytes": 1899889,
+      "sha256": "d684dd644778c92705513dd4715a22c15d4496f5ae0ca836e8eafc1c3b9a2fee"
+    },
+    "project-os-demo-en.srt": {
+      "bytes": 1053,
+      "sha256": "e14572b37f9a0ca4daecbe5473e4fa5590759cf1f9d7470d39d61666a68aeadc"
+    }
+  },
+  "recordedCaseAtRendering": {
+    "pathAtRendering": "public/case-data.json",
+    "sha256": "197b4e1fc87def1da771275129ac40ba8a64a8cbea579dd36cbe53a287a40401",
+    "status": "superseded-by-final-four-stage-export",
+    "scope": "Snapshot named by the renderer at video assembly; retained here as historical provenance, not the current delivered file hash. Actual capture frames and immutable analysis inputs remain recorded above."
+  },
+  "deliveryCase": {
+    "path": "../case-data.json",
+    "sha256": "d72f65b4b0611bd366ef26eab9c7d72d34ea22f169a687066f4066634d1d7091",
+    "scope": "Current four-stage read-only case includes the later final evidence analysis. It is distinct from the filmed stages; the video does not claim that final model judgment was complete at capture time."
+  },
+  "renderingProvenanceSha256": "ab0ea2bc525672e553d31436eb816548ce94c5a088efc006b41b47b5b027847f"
+}

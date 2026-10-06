@@ -6,9 +6,9 @@ Project OS 把人的目标、代码支持的流程与模块、本轮变化、实
 
 ![Project OS：先看目标，再看本轮结果](docs/case/media/cover.svg)
 
-[直接打开真实自开发案例](https://rossky094-hub.github.io/project-os/case/) · [中文演示](docs/case/media/project-os-demo-zh.mp4) · [English demo](docs/case/media/project-os-demo-en.mp4)
+[先看真实自开发案例](docs/case/index.html) · [中文演示](docs/case/media/project-os-demo-zh.mp4) · [English demo](docs/case/media/project-os-demo-en.mp4)
 
-在线案例可直接打开。下载源码后，也可用普通浏览器打开 `docs/case/index.html`；在 GitHub 文件页点 HTML 会显示源码。这里展示只读回放；实际工作台需按下方步骤在本地接入。演示是分段实拍，省略模型等待。
+> 当前改稿用于本次宣传交付包，尚未替换 GitHub 上的 README。下载交付包后，用浏览器直接打开 docs/case/index.html；GitHub 文件页显示 HTML 源码。视频是分段实拍，省略模型等待，不表示整个分析只需一分钟。
 
 案例先读取 Project OS 自己的公开 Alpha.2 代码，再代录用户历史目标和五项明确要求。你可以切换实际分析阶段、按目标查看流程与模块、打开来源行，查看本轮的文稿变化和限定检查。它是只读回放，不能分析你的仓库。
 

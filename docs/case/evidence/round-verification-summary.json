@@ -1,0 +1,138 @@
+{
+  "schema": "project-os.public-verification-summary.v1",
+  "kind": "redacted-projection-of-actual-local-receipt",
+  "rawOriginalSha256": "1b88236afd9bb2352cf630fc997205f4b41a77db7d60edf58cc9b44130243a6d",
+  "rawOriginalPreservedLocally": true,
+  "receiptId": "verification-2ecff5b9-48a4-4b8d-a727-6edaf4d29d2b",
+  "binding": {
+    "projectId": "project-os-demo",
+    "registryHash": "1fa5095bffdbb3ce06c0d505904fccb9a591e9cf309381972ca562c74f5f35c6",
+    "sourceHash": "62e14e6922aaf33d39449e1f38d94880c9a20e1f30db2167835d86a4be1f430c",
+    "goalHash": "388be7f0c7b6e911628a2d7dc4a5b9dd50372f5780dd960151b25b651ed97dba",
+    "goalVersion": 3,
+    "confirmationId": "scenarios-13dbf92f-fc7c-4ca2-95a3-48437daf9126",
+    "confirmationHash": "9e4573e197a6a8aba5c6fb05bccb381b5674655cab3449dba5553c62df551d7d",
+    "roundId": "round-launch-readme-20261006",
+    "roundBindingHash": "f3e9db34a0b9a806bc9eb3f0e4bc34ab921a0c1f0c2b1cc4e87c23f379b434ef",
+    "beforeSnapshotId": "snapshot-ffc5daa87897f6a4b02c01a83b9ea681",
+    "taskPurpose": "将公开README首屏改为用户问题、直接案例和观看顺序，并在本工具记录真实文稿变化和限定检查；不新增核心产品能力，不宣称独立新手已看懂。",
+    "criteria": [
+      {
+        "scenarioId": "scenario-whole-goal-understanding",
+        "criterionId": "criterion-original-intent-coverage",
+        "criterionHash": "fbf84bb990929bff4f2846bb5fc585dffdc09edf78222ed159e18c17e4d54703"
+      },
+      {
+        "scenarioId": "scenario-whole-goal-understanding",
+        "criterionId": "criterion-module-task-explanation",
+        "criterionHash": "36d2324c6d6a3f5073b0c000e10f64c669465a37d996d48517dda8eb1f70e365"
+      },
+      {
+        "scenarioId": "scenario-whole-goal-understanding",
+        "criterionId": "criterion-distinguish-relationship-evidence",
+        "criterionHash": "ba2d3085839f113a7d6cdf72237dbf04069de59bb5dd47a0548908eb597ddeef"
+      },
+      {
+        "scenarioId": "scenario-whole-goal-understanding",
+        "criterionId": "criterion-current-intent-scenario-mapping",
+        "criterionHash": "2133b62da05803c92a388d68a3a5465a43fbaabd5f29a1be035c3517ac67f009"
+      },
+      {
+        "scenarioId": "scenario-real-round-progress",
+        "criterionId": "criterion-round-purpose-and-change",
+        "criterionHash": "c361e27019e261de521fbfd58713c17a2c79662a5f6aca711b35169af2b0df0c"
+      },
+      {
+        "scenarioId": "scenario-real-round-progress",
+        "criterionId": "criterion-round-proof-boundary",
+        "criterionHash": "7d2d8a575abbb79027d09c8c23210132e41b74c087ac68b5e5f949cf794ec899"
+      },
+      {
+        "scenarioId": "scenario-goal-based-adjustment",
+        "criterionId": "criterion-counterexample-consumed",
+        "criterionHash": "c069b20d81e9319948ca4d507575a5676c3d1aee1f167cad6b2b5314251297c3"
+      },
+      {
+        "scenarioId": "scenario-goal-based-adjustment",
+        "criterionId": "criterion-adjustment-value",
+        "criterionHash": "afeb10a1bf4d4217b7bd1f2fb510d49838214ff650e221dd900d587ed8e0faca"
+      },
+      {
+        "scenarioId": "scenario-novice-independent-readout",
+        "criterionId": "criterion-reader-own-account",
+        "criterionHash": "4bf990dacdc065422dd863df845f93b5d963af54f9b979aeb5f1809a830c2bbc"
+      },
+      {
+        "scenarioId": "scenario-correction-and-continuity",
+        "criterionId": "criterion-correction-history",
+        "criterionHash": "6574bf41120ed28d4d1bd2f8d5b7dd7b3ea37824f1f021ec39bcbcb989b5dcfa"
+      },
+      {
+        "scenarioId": "scenario-correction-and-continuity",
+        "criterionId": "criterion-goal-change-propagation",
+        "criterionHash": "934868164c882ec09b05d381b253929fde7539ed26a42e9f8f90f82e92fa6e1a"
+      },
+      {
+        "scenarioId": "scenario-correction-and-continuity",
+        "criterionId": "criterion-goal-entry-roundtrip",
+        "criterionHash": "d83798d0c8d6147b4f0c57ac0b4e9d46f6d31462ec8dd419fe6124bda59db045"
+      },
+      {
+        "scenarioId": "scenario-correction-and-continuity",
+        "criterionId": "criterion-manual-source-change-continuity",
+        "criterionHash": "9b746ec10a6f50305370f870334806f452a3f77c4dc416b5d2a03ce32ab47226"
+      },
+      {
+        "scenarioId": "scenario-key-result-verification",
+        "criterionId": "criterion-key-result-and-failure-types",
+        "criterionHash": "fffae6b4e4df62f092b244b95f1e36c428e62fc79f06f59cedb632866afdef97"
+      },
+      {
+        "scenarioId": "scenario-key-result-verification",
+        "criterionId": "criterion-receipt-scope-and-trace",
+        "criterionHash": "7e6856600ef78b0e15436dc9bc7389ea1ca89eef8f6804f40860afa4c4c66e32"
+      },
+      {
+        "scenarioId": "scenario-public-case-entry",
+        "criterionId": "criterion-public-entry-and-boundary",
+        "criterionHash": "17e3e792dc1bed0106d80d37be9272b8d71705207ab5b0122eae18e7b837ce39"
+      }
+    ]
+  },
+  "startedAt": "2026-10-06T01:12:27.956Z",
+  "endedAt": "2026-10-06T01:12:28.550Z",
+  "sourceAfterHash": "62e14e6922aaf33d39449e1f38d94880c9a20e1f30db2167835d86a4be1f430c",
+  "sourceChanged": false,
+  "checks": [
+    {
+      "id": "launch-round-proof",
+      "command": "node build/verify-launch-round.mjs LOCAL_LAUNCH_ROOT",
+      "configHash": "cc930ca8df202768dab0aeb91ff322566a1f684ea2206572615acc1209f7a15d",
+      "exitCode": 0,
+      "executionError": null,
+      "startedAt": "2026-10-06T01:12:27.956Z",
+      "endedAt": "2026-10-06T01:12:28.430Z",
+      "assertions": [
+        {
+          "assertionId": "launch-round-purpose",
+          "status": "passed",
+          "actual": "本轮README改稿的目的、目标绑定、前后实际来源及手工事件均可核查",
+          "evidence": "{\"schema\":\"project-os.launch-round-check.v1\",\"at\":\"2026-10-06T01:12:28.183Z\",\"scope\":\"README material round registration, actual before/after bytes, manual events and source binding; not novice comprehension or core product capability.\",\"goalHash\":\"388be7f0c7b6e911628a2d7dc4a5b9dd50372f5780dd960151b25b651ed97dba\",\"sourceHash\":\"62e14e6922aaf33d39449e1f38d94880c9a20e1f30db2167835d86a4be1f430c\",\"roundId\":\"round-launch-readme-20261006\",\"checks\":{\"registration\":true,\"boundaries\":true,\"completed\":true,\"actualBefore\":true,\"actualAfter\":true,\"onlyReadme\":true,\"currentSource\":true,\"manual\":true}}",
+          "scenarioId": "scenario-real-round-progress",
+          "criterionId": "criterion-round-purpose-and-change",
+          "criterionHash": "c361e27019e261de521fbfd58713c17a2c79662a5f6aca711b35169af2b0df0c"
+        },
+        {
+          "assertionId": "launch-independent-reader",
+          "status": "unknown",
+          "actual": "本次未组织独立新手参与者作答；操作者、模型和软件检查不能替代",
+          "evidence": "No independent participant response was collected in this recorded self-case.",
+          "scenarioId": "scenario-novice-independent-readout",
+          "criterionId": "criterion-reader-own-account",
+          "criterionHash": "4bf990dacdc065422dd863df845f93b5d963af54f9b979aeb5f1809a830c2bbc"
+        }
+      ]
+    }
+  ],
+  "scope": "The recorded README round, byte observations and manual events only. Not an independent participant response, core capability improvement or whole-product acceptance."
+}

@@ -1,0 +1,138 @@
+{
+  "schema": "project-os.viewer-checks.v1",
+  "generatedAt": "2026-10-06T01:45:01.316Z",
+  "inputSha256": "662b8540bbad5c95ab58ee40a8f0a48263689239f90d4cabb157f31c8060cc90",
+  "scope": "Software rendering and read-only controls on actual case data; not human comprehension",
+  "assertions": [
+    {
+      "id": "actual-stage-data",
+      "status": "passed",
+      "actual": "4 actual recorded stages"
+    },
+    {
+      "id": "case-scope",
+      "status": "passed",
+      "actual": "Read-only case; no business acceptance claim"
+    },
+    {
+      "id": "no-template-placeholder",
+      "status": "passed",
+      "actual": "Case data embedded"
+    },
+    {
+      "id": "stage-controls",
+      "status": "passed",
+      "actual": "4 controls"
+    },
+    {
+      "id": "purpose-from-record",
+      "status": "passed",
+      "actual": "Rendered purpose exactly matches recorded result"
+    },
+    {
+      "id": "unknown-not-green",
+      "status": "passed",
+      "actual": "Source-only stage does not show passed runtime checks"
+    },
+    {
+      "id": "module-graph",
+      "status": "passed",
+      "actual": "12 source-backed nodes in current view"
+    },
+    {
+      "id": "node-inspector",
+      "status": "passed",
+      "actual": "目标、反馈与分析会话协调"
+    },
+    {
+      "id": "inspectable-source",
+      "status": "passed",
+      "actual": "Inline source snippet available"
+    },
+    {
+      "id": "stage-0",
+      "status": "passed",
+      "actual": "Stage data and visible interpretation agree"
+    },
+    {
+      "id": "stage-1",
+      "status": "passed",
+      "actual": "Stage data and visible interpretation agree"
+    },
+    {
+      "id": "stage-2",
+      "status": "passed",
+      "actual": "Stage data and visible interpretation agree"
+    },
+    {
+      "id": "stage-3",
+      "status": "passed",
+      "actual": "Stage data and visible interpretation agree"
+    },
+    {
+      "id": "all-journeys-available",
+      "status": "passed",
+      "actual": "5 recorded workflows available"
+    },
+    {
+      "id": "journey-selection",
+      "status": "passed",
+      "actual": "Selected workflow is rendered"
+    },
+    {
+      "id": "all-modules-available",
+      "status": "passed",
+      "actual": "21 recorded modules accessible"
+    },
+    {
+      "id": "goal-module-filter",
+      "status": "passed",
+      "actual": "21 modules selected by actual clause mappings"
+    },
+    {
+      "id": "only-current-gaps-listed",
+      "status": "passed",
+      "actual": "Stale gaps retained in records, not counted as current actions"
+    },
+    {
+      "id": "analysis-suggestion",
+      "status": "passed",
+      "actual": "Current model recommendation matches this stage"
+    },
+    {
+      "id": "service-next-step",
+      "status": "passed",
+      "actual": "Service-required next step is separately retained"
+    },
+    {
+      "id": "feedback-response-preserved",
+      "status": "passed",
+      "actual": "Actual feedback response is available"
+    },
+    {
+      "id": "entry-failure-visible",
+      "status": "passed",
+      "actual": "Interrupted entry error is visible in history"
+    },
+    {
+      "id": "language-control",
+      "status": "passed",
+      "actual": "English presentation header"
+    },
+    {
+      "id": "script-execution",
+      "status": "passed",
+      "actual": "No viewer errors"
+    },
+    {
+      "id": "no-third-party-script",
+      "status": "passed",
+      "actual": "No external executable script"
+    },
+    {
+      "id": "no-model-network",
+      "status": "passed",
+      "actual": "Reader controls make no model or API calls"
+    }
+  ]
+}

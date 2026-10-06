@@ -1,0 +1,144 @@
+{
+  "schema": "project-os.launch-provenance.v1",
+  "kind": "recorded-self-case-and-read-only-presentation",
+  "source": {
+    "repository": "https://github.com/rossky094-hub/project-os",
+    "baseRelease": "v0.1.0-alpha.2",
+    "baseCommit": "a1cdbed882f6c0c63affd1d8e93f748db75a9ab7",
+    "registeredScope": [
+      "src/core/human-goal-workflow",
+      "src/human-goal-workbench",
+      "scripts",
+      "README.md",
+      "docs/PRD.md",
+      "docs/SPEC.md",
+      "docs/SELF-CASE.md",
+      "AGENTS.md",
+      "package.json"
+    ],
+    "onlyRegisteredSourceChangeInMaterialRound": "README.md",
+    "coreProductCodeChanged": false,
+    "readerImplementation": "New presentation artifacts outside the registered analysis scope; source interpretation and reader software checks are separate."
+  },
+  "humanInput": {
+    "basis": "Historical user overall goal and five specific requirements, retained verbatim in case records",
+    "operator": "Codex delegated transcription and correction through the workbench and its supported feedback API",
+    "independentNoviceParticipant": false,
+    "newHumanBusinessAcceptance": false
+  },
+  "capture": {
+    "scope": "Only selected Project OS workbench and read-only case browser tabs",
+    "wholeDesktopRecorded": false,
+    "otherUserApplicationContentIncluded": false,
+    "method": "Segmented screenshots, not continuous screen recording",
+    "invalidEntryFramesExcluded": "011–017",
+    "additionalExcludedFrame": "023 captured the outcome/video section rather than the intended diagram; retained internally, not used as diagram footage.",
+    "syntheticUIImagesUsed": false,
+    "voice": "System-generated Tingting/Daniel narration, not a recording or imitation of the user"
+  },
+  "goalComparison": {
+    "sameSource": true,
+    "beforeGoalVersion": 1,
+    "afterGoalVersion": 3,
+    "beforeClauses": 1,
+    "afterClauses": 6,
+    "beforeScenarios": 5,
+    "afterScenarios": 6,
+    "beforeOpenGaps": [
+      "gap-adjustment-effect",
+      "gap-complete-intent-coverage",
+      "gap-continuity-observation",
+      "gap-current-understanding-result",
+      "gap-novice-understanding",
+      "gap-progress-proof-preconditions",
+      "gap-real-round-evidence"
+    ],
+    "afterOpenGaps": [
+      "gap-g3-intent-coverage",
+      "gap-goal-entry-roundtrip",
+      "gap-progress-proof-preconditions",
+      "gap-adjustment-effect",
+      "gap-continuity-observation",
+      "gap-current-understanding-result",
+      "gap-goal-change-propagation",
+      "gap-novice-understanding",
+      "gap-real-round-evidence"
+    ],
+    "afterStaleGaps": [
+      "gap-complete-intent-coverage"
+    ],
+    "nextBefore": "核对并确认模型提出的场景与验收条件",
+    "nextAfter": "核对并确认模型提出的场景与验收条件",
+    "interpretation": "Goal mapping and gap coverage changed. Same generic scenario-review next action remains. No independent novice comprehension or business acceptance proved."
+  },
+  "validation": {
+    "sourceReferences": "Exact source bytes and line ranges checked against the public baseline or the retained README version. Matching source citations do not prove semantic correctness.",
+    "softwareChecks": "Read-only rendering and controls checked separately; does not prove beginner comprehension.",
+    "roundReceipt": "evidence/round-verification-summary.json",
+    "summaryProjection": "Local paths removed; the immutable original receipt remains local and has a separately disclosed SHA256.",
+    "reopen": "evidence/reopen-comparison.json",
+    "finalEvidenceAnalysis": {
+      "attemptId": "attempt-7b9e991b-9c1b-4b0b-b609-45f355c82002",
+      "goalHash": "388be7f0c7b6e911628a2d7dc4a5b9dd50372f5780dd960151b25b651ed97dba",
+      "sourceHash": "62e14e6922aaf33d39449e1f38d94880c9a20e1f30db2167835d86a4be1f430c",
+      "diagnosisCurrent": true,
+      "confirmationContinuity": "unchanged-mapping",
+      "limitedCondition": "criterion-round-purpose-and-change:passed",
+      "independentReader": "unknown"
+    }
+  },
+  "media": "media/provenance.json",
+  "businessScope": {
+    "overallAccepted": false,
+    "unfamiliarProjectReliability": "unverified",
+    "independentBeginnerEffect": "unverified",
+    "developmentEvents": "manual in this case; automatic newer-log adapter unverified"
+  },
+  "browserValidation": {
+    "inAppPreview": "http loopback web application",
+    "fileProtocol": "The in-app browser blocks file URLs. No in-app file-mode validation is claimed."
+  },
+  "publication": {
+    "newMaterialsPublished": false,
+    "publicCaseUrl": null,
+    "existingAlpha2Changed": false,
+    "meaning": "Preparation-time status retained from the reviewed offline case. Subsequent publication is recorded by repository commits and the GitHub Pages deployment; these original flags do not assert the current hosting state."
+  },
+  "completedAnalyses": [
+    {
+      "id": "attempt-7aa2a4bf-50af-43d7-94f2-c68ad8f78a1c",
+      "goalVersion": null,
+      "sourceHash": "1c54750aed93c9a4946b7f50ef0f3c1364cc60930eeccffe05726be860f51da1",
+      "startedAt": "2026-10-05T23:14:37.597Z",
+      "endedAt": "2026-10-05T23:26:59.120Z"
+    },
+    {
+      "id": "attempt-352ad1c0-4f4e-4afa-ab77-aecfaeeaa7ed",
+      "goalVersion": 1,
+      "sourceHash": "1c54750aed93c9a4946b7f50ef0f3c1364cc60930eeccffe05726be860f51da1",
+      "startedAt": "2026-10-05T23:31:05.081Z",
+      "endedAt": "2026-10-05T23:45:05.460Z"
+    },
+    {
+      "id": "attempt-0dcea83f-9e8f-4003-8f1c-0a8cbf1d04b9",
+      "goalVersion": 3,
+      "sourceHash": "1c54750aed93c9a4946b7f50ef0f3c1364cc60930eeccffe05726be860f51da1",
+      "startedAt": "2026-10-06T00:01:06.470Z",
+      "endedAt": "2026-10-06T00:19:53.207Z"
+    },
+    {
+      "id": "attempt-109c398c-f567-4fe1-adb0-03c361979b4b",
+      "goalVersion": 3,
+      "sourceHash": "62e14e6922aaf33d39449e1f38d94880c9a20e1f30db2167835d86a4be1f430c",
+      "startedAt": "2026-10-06T00:38:51.785Z",
+      "endedAt": "2026-10-06T01:08:01.525Z"
+    },
+    {
+      "id": "attempt-7b9e991b-9c1b-4b0b-b609-45f355c82002",
+      "goalVersion": 3,
+      "sourceHash": "62e14e6922aaf33d39449e1f38d94880c9a20e1f30db2167835d86a4be1f430c",
+      "startedAt": "2026-10-06T01:14:17.787Z",
+      "endedAt": "2026-10-06T01:33:22.366Z"
+    }
+  ]
+}

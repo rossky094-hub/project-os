@@ -1,0 +1,39 @@
+1
+00:00:00,180 --> 00:00:03,005
+AI changed the code. Did the product move forward?
+
+2
+00:00:05,180 --> 00:00:10,994
+First, read the actual source. That analysis took over twelve
+minutes; this edit omits the wait.
+
+3
+00:00:12,180 --> 00:00:16,981
+Next, Codex transcribes the user's earlier overall goal into the
+workbench.
+
+4
+00:00:19,180 --> 00:00:25,348
+G one took fourteen minutes to reanalyse the goal. Scenarios and
+acceptance criteria still need review.
+
+5
+00:00:26,180 --> 00:00:32,880
+The feedback API restored six clauses. This is a later readback;
+normal entry still needs investigation.
+
+6
+00:00:33,180 --> 00:00:40,566
+With the fuller goal, follow module links to related gaps and
+sources. Code paths are visible; unverified outcomes remain open.
+
+7
+00:00:41,180 --> 00:00:48,230
+Only README changed. Round and source checks pass. Core code
+stayed the same; novice understanding is unknown.
+
+8
+00:00:49,180 --> 00:00:56,285
+The read only case compares goals and gaps. The full desktop Alpha
+needs local setup; novice use remains unverified.
+

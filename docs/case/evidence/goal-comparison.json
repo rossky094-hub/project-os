@@ -1,0 +1,35 @@
+{
+  "sameSource": true,
+  "beforeGoalVersion": 1,
+  "afterGoalVersion": 3,
+  "beforeClauses": 1,
+  "afterClauses": 6,
+  "beforeScenarios": 5,
+  "afterScenarios": 6,
+  "beforeOpenGaps": [
+    "gap-adjustment-effect",
+    "gap-complete-intent-coverage",
+    "gap-continuity-observation",
+    "gap-current-understanding-result",
+    "gap-novice-understanding",
+    "gap-progress-proof-preconditions",
+    "gap-real-round-evidence"
+  ],
+  "afterOpenGaps": [
+    "gap-g3-intent-coverage",
+    "gap-goal-entry-roundtrip",
+    "gap-progress-proof-preconditions",
+    "gap-adjustment-effect",
+    "gap-continuity-observation",
+    "gap-current-understanding-result",
+    "gap-goal-change-propagation",
+    "gap-novice-understanding",
+    "gap-real-round-evidence"
+  ],
+  "afterStaleGaps": [
+    "gap-complete-intent-coverage"
+  ],
+  "nextBefore": "核对并确认模型提出的场景与验收条件",
+  "nextAfter": "核对并确认模型提出的场景与验收条件",
+  "interpretation": "Goal mapping and gap coverage changed. Same generic scenario-review next action remains. No independent novice comprehension or business acceptance proved."
+}
